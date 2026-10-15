@@ -1,0 +1,318 @@
+// Source: data-cortex-monorepo backend — Drizzle ORM schema (authoritative for that app)
+//   data-cortex-monorepo/packages/@repo/db/src/schema/*.ts
+//   (common, connections, configs, libraries, results, user, testing)
+//   Applied to a database via: packages/@repo/db/src/scripts/init-db.ts
+// Captured: 2026-10-05
+// Role in comparison: monorepo backend implementation
+//
+// Transcribed to DBML by hand from the Drizzle definitions. Section order and
+// column order follow v1_dbdiagram_erd.dbml so the versions diff side by side.
+// Enum values are spelled out in notes because the ERD only says "enum".
+
+// ======================================================================
+//  CHECK LIBRARY TABLES
+// ======================================================================
+
+Table traditional_checks_library {
+  check_id varchar [pk, note: 'NOT auto-increment; app-generated, e.g. TC_0001']
+  check_mapping_name varchar [unique, not null]
+  check_name varchar [unique, not null]
+  check_description text
+  abort boolean [not null]
+  user_id uuid [not null, note: 'EXTRA vs ERD']
+  enabled boolean [not null, default: true, note: 'EXTRA vs ERD']
+  created_at timestamp [not null, default: `now()`, note: 'EXTRA vs ERD']
+  updated_at timestamp [default: `now()`, note: 'EXTRA vs ERD']
+  // NOTE: no deactivated_at here, unlike every other table in this version
+}
+
+Ref: users.id < traditional_checks_library.user_id
+
+// ======================================================================
+//  CONNECTION TABLES
+// ======================================================================
+
+Table database_connection {
+  connection_id varchar [pk, note: 'NOT auto-increment; app-generated, e.g. DB_0001']
+  connection_name varchar [unique, not null]
+  database_type database_type_enum [not null, note: 'mysql, postgres, snowflake']
+  host varchar [not null, note: 'DIFFERS: nullable in ERD — flagged in source comment']
+  port integer [not null, note: 'DIFFERS: nullable in ERD']
+  database_name varchar [not null]
+  username varchar [not null]
+  password varchar [not null]
+  user_id uuid [not null]
+  db_schema varchar [not null]
+  additional_params jsonb [default: `{}`]
+  enabled boolean [not null, default: true]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [default: `now()`]
+  deactivated_at timestamp
+}
+
+Ref: users.id < database_connection.user_id
+
+Table file_connection {
+  connection_id varchar [pk, note: 'NOT auto-increment; app-generated, e.g. FC_0001']
+  connection_name varchar [unique, not null]
+  storage_type file_storage_type_enum [not null, note: 'aws-s3, azure, gcs, local-storage']
+  bucket_or_container_name varchar [not null]
+  region varchar [not null]
+  access_key_id varchar [not null]
+  secret_access_key varchar [not null, note: 'Encrypted']
+  additional_params jsonb [default: `{}`]
+  user_id uuid [not null]
+  enabled boolean [not null, default: true]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [default: `now()`]
+  deactivated_at timestamp
+}
+
+Ref: users.id < file_connection.user_id
+
+// ======================================================================
+//  CONFIG TABLES
+// ======================================================================
+
+// -------- Database-based
+Table db_based_checks_config {
+  config_id varchar [pk, note: 'NOT auto-increment; app-generated, e.g. DBC_0001']
+  config_name varchar [unique, not null]
+  check_category integer [not null]
+  workstream integer [not null]
+  impacted_downstream "integer[]" [not null]
+  data_source integer [not null]
+  source_connection_id varchar [not null]
+  source_table_name varchar [not null]
+  target_connection_id varchar [not null]
+  target_table_prefix varchar [not null]
+  landing_table boolean [not null, default: false, note: 'DIFFERS: pipeline migration sets this default to TRUE']
+  landing_table_name varchar
+  enabled boolean [not null, default: true]
+  user_id uuid [not null]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [default: `now()`]
+  deactivated_at timestamp
+}
+
+Ref: database_connection.connection_id < db_based_checks_config.source_connection_id
+Ref: database_connection.connection_id < db_based_checks_config.target_connection_id
+Ref: users.id < db_based_checks_config.user_id
+
+// -------- File-based
+Table file_based_checks_config {
+  config_id varchar [pk, note: 'NOT auto-increment; app-generated, e.g. FBC_0001']
+  config_name varchar [unique, not null]
+  check_category integer [not null]
+  workstream integer [not null]
+  impacted_downstream "integer[]" [not null]
+  data_source integer [not null]
+  source_connection_id varchar [not null]
+  source_file_type source_file_type [not null, default: 'csv', note: 'excel, csv, json']
+  source_file_delimiter source_file_delimiter [note: 'comma, pipe, tab, semicolon']
+  source_file_name varchar [not null]
+  source_file_path varchar [default: '/', note: 'DIFFERS: ERD lists path before name']
+  target_connection_id varchar [not null]
+  target_table_prefix varchar [not null]
+  landing_table boolean [not null, default: false]
+  landing_table_name varchar
+  enabled boolean [not null, default: true]
+  user_id uuid [not null]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [default: `now()`]
+  deactivated_at timestamp
+}
+
+Ref: file_connection.connection_id < file_based_checks_config.source_connection_id
+Ref: database_connection.connection_id < file_based_checks_config.target_connection_id
+Ref: users.id < file_based_checks_config.user_id
+
+// -------- Custom Business Checks
+Table custom_business_checks_config {
+  check_id varchar [pk, note: 'NOT auto-increment; app-generated, e.g. CB_0001']
+  check_name varchar [unique, not null]
+  check_description text
+  check_category integer [not null]
+  workstream integer [not null]
+  impacted_downstream "integer[]" [not null]
+  data_source integer [not null]
+  source_connection_id varchar [not null]
+  target_connection_id varchar [not null]
+  target_table_prefix varchar [not null]
+  sql_query text [not null]
+  criticality check_criticality [not null, note: 'low, medium, high']
+  error_message varchar [not null]
+  enabled boolean [not null, default: true]
+  user_id uuid [not null]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [default: `now()`]
+  deactivated_at timestamp
+  // NOTE: no source_table_name — pipeline migration batch1 step 9 adds one
+}
+
+Ref: database_connection.connection_id < custom_business_checks_config.source_connection_id
+Ref: database_connection.connection_id < custom_business_checks_config.target_connection_id
+Ref: users.id < custom_business_checks_config.user_id
+
+// ======================================================================
+//  TRADITIONAL CONFIG DETAILS TABLE
+// ======================================================================
+
+Table traditional_config_details {
+  tc_req_id serial [pk, increment]
+  config_id varchar [not null]
+  field varchar [not null, note: 'shown as column_name in UI']
+  column_order integer [not null]
+  column_datatype tcd_data_type [not null, note: 'string, integer, float, date, datetime, boolean, varchar']
+  primary_key_check boolean [not null]
+  primary_key_check_criticality check_criticality
+  null_check boolean [not null]
+  null_check_criticality check_criticality
+  duplicate_check boolean [not null]
+  duplicate_check_criticality check_criticality
+  length_check boolean [not null]
+  expected_length integer
+  length_check_criticality check_criticality
+  format_check boolean [not null]
+  format_regex varchar
+  format_check_criticality check_criticality
+  lov_check boolean [not null]
+  lovs text
+  lov_check_criticality check_criticality
+  ri_check boolean [not null]
+  ri_connection_id varchar
+  ri_reference_table varchar
+  ri_field_name varchar
+  ri_check_criticality check_criticality
+  enabled boolean [not null, default: true, note: 'EXTRA vs ERD; marked "needs to be verified" in source']
+  user_id uuid [not null, note: 'EXTRA vs ERD']
+  created_at timestamp [not null, default: `now()`, note: 'EXTRA vs ERD']
+  updated_at timestamp [default: `now()`, note: 'EXTRA vs ERD']
+  deactivated_at timestamp [note: 'EXTRA vs ERD']
+}
+
+// IMPORTANT DIFFERENCE: this version FKs config_id to file_based only.
+// The ERD points it at BOTH db_based and file_based config tables.
+Ref: file_based_checks_config.config_id < traditional_config_details.config_id
+Ref: database_connection.connection_id < traditional_config_details.ri_connection_id
+Ref: users.id < traditional_config_details.user_id
+
+// ======================================================================
+//  LABELLING/TAGGING
+// ======================================================================
+
+Table qc_tags {
+  id serial [pk, increment]
+  tag_type qc_tag_type [not null, note: 'DIFFERS: ERD calls this column "type". Values: impacted_downstream, workstream, data_source, category']
+  tag_title varchar [not null, note: 'DIFFERS: ERD calls this column "title"']
+  description text
+  user_id uuid [not null, note: 'EXTRA vs ERD']
+  enabled boolean [not null, default: true]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [default: `now()`]
+  deactivated_at timestamp
+}
+
+Ref: users.id < qc_tags.user_id
+
+Ref: qc_tags.id < file_based_checks_config.check_category
+Ref: qc_tags.id < db_based_checks_config.check_category
+Ref: qc_tags.id < custom_business_checks_config.check_category
+Ref: qc_tags.id < results.check_category
+
+Ref: qc_tags.id < file_based_checks_config.workstream
+Ref: qc_tags.id < db_based_checks_config.workstream
+Ref: qc_tags.id < custom_business_checks_config.workstream
+Ref: qc_tags.id < results.workstream
+
+Ref: qc_tags.id < file_based_checks_config.data_source
+Ref: qc_tags.id < db_based_checks_config.data_source
+Ref: qc_tags.id < custom_business_checks_config.data_source
+Ref: qc_tags.id < results.data_source
+
+// NOTE: impacted_downstream is integer[] and carries NO foreign key in this
+// version (an array column cannot have one in Postgres). The ERD draws a Ref
+// for it; that ref is design intent, not an implementable constraint.
+
+// ======================================================================
+//  DATA CORTEX LOGS/RESULT
+// ======================================================================
+
+Table results {
+  check_execution_id serial [pk, increment]
+  job_id varchar [not null]
+  job_timestamp timestamp [not null]
+  user_id uuid [not null]
+  check_id varchar [not null]
+  check_name varchar [not null]
+  check_description varchar
+  config_id varchar [not null]
+  config_name varchar [not null]
+  check_category integer [not null]
+  workstream integer [not null]
+  impacted_downstream "integer[]" [not null]
+  data_source integer [not null]
+  file_or_table_name varchar [not null]
+  check_type check_type [not null, note: 'conformance, custom_sql']
+  field varchar [not null, note: 'DIFFERS: pipeline migration batch1 step 8 drops NOT NULL']
+  abort boolean [not null]
+  check_status check_status [not null, note: 'passed, failed']
+  criticality results_criticality [note: 'low, medium, high']
+  issue_rows varchar [not null]
+  passed_rows varchar [not null]
+  failure_reason varchar
+  issue_status issue_status [default: 'open', note: 'open, resolved, discarded']
+  created_at timestamp [not null, default: `now()`, note: 'EXTRA vs ERD; marked "needs to be verified" in source']
+  updated_at timestamp [default: `now()`, note: 'EXTRA vs ERD']
+}
+
+Ref: users.id < results.user_id
+
+// ======================================================================
+//  TABLES PRESENT ONLY IN THIS VERSION (absent from the ERD)
+// ======================================================================
+
+Table users {
+  id uuid [pk, default: `gen_random_uuid()`]
+  email varchar(255) [unique, not null]
+  full_name varchar(255) [not null]
+  role user_role [not null, default: 'analyst', note: 'admin, engineer, analyst']
+  refresh_token text
+  enabled boolean [not null, default: true]
+  created_by uuid [note: 'self-reference; NOT NULL is commented out in source']
+  last_login_at timestamp [default: `now()`]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [default: `now()`]
+  deactivated_at timestamp
+}
+
+Ref: users.id < users.created_by
+
+Table id_sequences {
+  id uuid [pk, default: `gen_random_uuid()`]
+  table_name varchar(250) [unique, not null]
+  prefix varchar(10) [not null]
+  value integer [not null, default: 0]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+}
+
+// Source file says: "This file should be removed and not to be added in
+// production... testing for concurrency, speed and latency" and index.ts says
+// "Should be removed before prod push!!!"
+Table testing_mock_records {
+  mock_record_id integer [pk, increment, note: 'GENERATED ALWAYS AS IDENTITY']
+  record_code varchar(32) [not null]
+  customer_code varchar(32) [not null]
+  full_name varchar(120) [not null]
+  email varchar(160) [not null]
+  status testing_mock_status [not null, default: 'active', note: 'active, inactive, pending, failed']
+  region varchar(40) [not null]
+  category varchar(40) [not null]
+  amount "numeric(12,2)" [not null]
+  score integer [not null]
+  event_date date [not null]
+  enabled boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}

@@ -1,0 +1,50 @@
+{
+	"name": "core-server",
+	"description": "",
+	"type": "module",
+	"scripts": {
+		"dev": "tsx watch src/index.ts",
+		"dev:debug": "tsx watch --inspect src/index.ts",
+		"bun:dev": "bun --watch src/index.ts",
+		"build": "tsdown --config-loader unrun",
+		"start": "node dist/index.mjs",
+		"lint": "eslint .",
+		"lint:fix": "eslint . src/**/*.ts --fix",
+		"clean": "rimraf dist .turbo dist",
+		"deep:clean": "rimraf node_modules dist .turbo",
+		"typecheck": "tsc --noEmit",
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@aws-sdk/client-s3": "catalog:",
+		"@repo/constants": "workspace:^",
+		"@repo/dao": "workspace:^",
+		"@repo/db": "workspace:^",
+		"@repo/types": "workspace:^",
+		"@repo/env": "workspace:^",
+		"@repo/lib": "workspace:^",
+		"@repo/logger": "workspace:^",
+		"@repo/mail": "workspace:^",
+		"@repo/redis": "workspace:^",
+		"cookie-parser": "catalog:",
+		"cors": "catalog:",
+		"country-state-city": "catalog:",
+		"express": "catalog:",
+		"express-fileupload": "catalog:",
+		"express-list-endpoints": "catalog:",
+		"morgan": "catalog:",
+		"tsdown-config": "workspace:^"
+	},
+	"devDependencies": {
+		"@types/cookie-parser": "catalog:",
+		"@types/cors": "catalog:",
+		"@types/express": "catalog:",
+		"@types/express-fileupload": "catalog:",
+		"@types/morgan": "catalog:",
+		"eslint-config": "workspace:^",
+		"typescript-config": "workspace:^",
+		"vitest-config": "workspace:^"
+	}
+}

@@ -1,0 +1,21 @@
+.venv
+__pycache__
+**/__pycache__
+*.pyc
+.git
+.claude
+
+# Local run artifacts -- regenerated at runtime, never part of the image.
+logs
+results
+playgrounds
+playground_e2e
+test_cases
+docs
+
+# Secrets stay out of the image; supplied at runtime via env_file.
+.env
+
+# OneDrive keeps large files as on-demand placeholders that the build context
+# cannot read ("invalid file request"); it is sample data, not a build input.
+EXECUTION_DF_EXAMPLE_UPDATED.csv

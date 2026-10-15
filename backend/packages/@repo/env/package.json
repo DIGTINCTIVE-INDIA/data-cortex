@@ -1,0 +1,23 @@
+{
+  "name": "@repo/env",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . src/**/*.ts --fix",
+    "clean": "rimraf dist .turbo dist",
+    "deep:clean": "rimraf node_modules dist .turbo",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run"
+  },
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "dotenv": "catalog:"
+  },
+  "devDependencies": {
+    "typescript-config": "workspace:^",
+    "eslint-config": "workspace:^",
+    "vitest-config": "workspace:^"
+  }
+}

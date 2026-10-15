@@ -1,0 +1,33 @@
+{
+	"name": "@repo/db",
+	"type": "module",
+	"scripts": {
+		"lint": "eslint .",
+		"lint:fix": "eslint . src/**/*.ts --fix",
+		"clean": "rimraf dist .turbo dist",
+		"deep:clean": "rimraf node_modules dist .turbo",
+		"typecheck": "tsc --noEmit",
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
+		"test": "vitest run",
+		"db:push": "drizzle-kit push --config drizzle.config.ts",
+		"db:seq": "tsx ./src/scripts/create-sequence.utils.ts",
+		"db:studio": "drizzle-kit studio",
+		"seed:testing-results": "tsx src/scripts/seed-mock-results.ts",
+		"db:init": "tsx src/scripts/init-db.ts"
+	},
+	"exports": "./src/index.ts",
+	"dependencies": {
+		"@repo/env": "workspace:*",
+		"drizzle-orm": "catalog:",
+		"pg": "catalog:"
+	},
+	"devDependencies": {
+		"@repo/types": "workspace:*",
+		"@types/pg": "catalog:",
+		"drizzle-kit": "^0.31.10",
+		"eslint-config": "workspace:^",
+		"typescript-config": "workspace:^",
+		"vitest-config": "workspace:^"
+	}
+}

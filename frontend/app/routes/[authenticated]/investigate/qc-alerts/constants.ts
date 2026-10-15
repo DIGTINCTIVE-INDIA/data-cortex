@@ -1,0 +1,1 @@
+export type TabValue = "open" | "resolved" | "discarded";

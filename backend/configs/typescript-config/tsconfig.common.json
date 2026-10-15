@@ -1,0 +1,32 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"useDefineForClassFields": true,
+		"module": "nodenext",
+		"lib": ["ES2022"],
+		"skipLibCheck": true,
+
+		"moduleResolution": "nodenext",
+		"allowImportingTsExtensions": false,
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"noEmit": true,
+
+		"experimentalDecorators": true,
+		"emitDecoratorMetadata": true,
+
+		"strict": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"useUnknownInCatchVariables": true,
+		"strictNullChecks": true,
+		"noImplicitAny": true,
+		"noImplicitReturns": true,
+		"noFallthroughCasesInSwitch": true,
+		"forceConsistentCasingInFileNames": true,
+		"removeComments": true,
+
+		"tsBuildInfoFile": "dist/typecheck.tsbuildinfo"
+	},
+	"exclude": ["node_modules", "dist"]
+}

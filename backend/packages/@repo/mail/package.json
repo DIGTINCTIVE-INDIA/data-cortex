@@ -1,0 +1,34 @@
+{
+  "name": "@repo/mail",
+  "description": "",
+  "type": "module",
+  "scripts": {
+    "dev": "email dev --port 3014 --dir ./src",
+    "lint": "eslint .",
+    "lint:fix": "eslint . src/**/*.ts --fix",
+    "clean": "rimraf dist .turbo dist",
+    "deep:clean": "rimraf node_modules dist .turbo",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run"
+  },
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@react-email/components": "catalog:",
+    "@react-email/render": "catalog:",
+    "@react-email/tailwind": "catalog:",
+    "eslint-config": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@react-email/preview-server": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react-email": "catalog:",
+    "typescript-config": "workspace:^",
+    "eslint-config": "workspace:^",
+    "vitest-config": "workspace:^"
+  }
+}

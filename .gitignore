@@ -1,0 +1,49 @@
+# ---- dependencies and build output ------------------------------------------------
+node_modules/
+node_modules.old/
+.pnpm-store/
+.turbo/
+dist/
+build/
+.react-router/
+coverage/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# ---- secrets -----------------------------------------------------------------------
+# Every env file is ignored, then the files that hold no secrets are let back in.
+.env
+.env.*
+!.env.example
+# The frontend's single .env holds only a mode name and the local API address.
+!frontend/.env
+*.pem
+*.p8
+*.key
+keys/
+.encryption_key
+
+# ---- machine-specific ---------------------------------------------------------------
+# pnpm's per-machine store path (a Windows path in this project) -- see README.
+.npmrc
+.vscode/
+.claude/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ---- logs and scratch ---------------------------------------------------------------
+*.log
+logs/
+server.log
+results/
+
+# ---- things that sit beside the code but are not part of it -------------------------
+*.zip
+New folder/
+DataCortex/
+db-watch/node_modules/

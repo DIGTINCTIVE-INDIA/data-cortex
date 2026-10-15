@@ -1,0 +1,12 @@
+{
+	"extends": "typescript-config/tsconfig.node.json",
+	"compilerOptions": {
+		"baseUrl": "./src",
+		// tsconfig.node.json pins "types": ["node"], which stops TypeScript from
+		// auto-including anything else in @types. express-fileupload augments
+		// Express.Request with `files`, and @repo/lib's validation-module reads it,
+		// so it has to be named here or those reads do not typecheck.
+		"types": ["node", "express-fileupload"]
+	},
+	"include": ["src/**/*.ts"]
+}

@@ -1,0 +1,624 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@100..900&display=swap");
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* =====================================================
+   🧠 DESIGN SYSTEM GUIDE (READ THIS ONCE)
+   =====================================================
+
+   PRIMARY (Blur Blue)
+   → Buttons, active states, focus ring, links, charts
+
+   NEUTRAL
+   → 00–10: backgrounds
+   → 10–20: cards, surfaces
+   → 20–30: borders, inputs
+   → 60–70: secondary text
+   → 80–100: primary text
+
+   SEMANTIC
+   → success: green (valid states)
+   → warning: amber (attention)
+   → error: red (failures)
+   → info: blue (neutral)
+
+   ACCENTS
+   → charts, tags, highlights
+
+   ===================================================== */
+
+/* =========================
+   🌞 LIGHT MODE
+   ========================= */
+
+:root {
+  /* softer primary blue */
+  --primary-00: #f3f7ff;
+  --primary-10: #e8f0ff;
+  --primary-20: #d5e4ff;
+  --primary-30: #bfd4ff;
+  --primary-40: #9fbdff;
+  --primary-50: #7fa5ff;
+  --primary-60: #5b83f6; /* softer main */
+  --primary-70: #416ee8;
+  --primary-80: #2f59cf;
+  --primary-90: #2345a8;
+  --primary-100: #1e347a;
+
+  /* slightly warmer, cleaner neutral */
+  --neutral-00: #ffffff;
+  --neutral-10: #fbfbfc;
+  --neutral-20: #f4f5f7;
+  --neutral-30: #e3e6ea;
+  --neutral-40: #cfd4dc;
+  --neutral-50: #9aa3af;
+  --neutral-60: #687385;
+  --neutral-70: #4b5565;
+  --neutral-80: #273142;
+  --neutral-90: #151b26;
+  --neutral-100: #070b12;
+
+  /* softer accents */
+  --success: #16a34a;
+  --warning: #d97706;
+  --error: #dc2626;
+  --info: #2563eb;
+
+  --purple: #7c3aed;
+  --teal: #0f9f8f;
+  --indigo: #4f46e5;
+  --pink: #db2777;
+  --amber: #ea580c;
+
+  --background: var(--neutral-00);
+  --foreground: var(--neutral-90);
+
+  --card: var(--neutral-10);
+  --card-foreground: var(--neutral-90);
+
+  --popover: var(--neutral-00);
+  --popover-foreground: var(--neutral-90);
+
+  --primary: var(--primary-60);
+  --primary-foreground: #ffffff;
+
+  --secondary: var(--neutral-20);
+  --secondary-foreground: var(--neutral-80);
+
+  --muted: var(--neutral-20);
+  --muted-foreground: var(--neutral-60);
+
+  --accent: var(--primary-10);
+  --accent-foreground: var(--primary-80);
+
+  --destructive: var(--error);
+
+  --border: var(--neutral-30);
+  --input: var(--neutral-20);
+  --ring: var(--primary-60);
+
+  --chart-1: var(--primary-60);
+  --chart-2: var(--teal);
+  --chart-3: var(--purple);
+  --chart-4: var(--amber);
+  --chart-5: var(--pink);
+
+  --radius: 0.75rem;
+}
+
+/* =========================
+   🌑 DARK MODE
+   ========================= */
+
+.dark {
+  --primary-00: #071326;
+  --primary-10: #0b1b35;
+  --primary-20: #10294f;
+  --primary-30: #17386b;
+  --primary-40: #24549d;
+  --primary-50: #326dd0;
+  --primary-60: #4f8cff;
+  --primary-70: #76a7ff;
+  --primary-80: #9abcff;
+  --primary-90: #bdd4ff;
+  --primary-100: #e3edff;
+
+  /* more visible dark surfaces */
+  --neutral-00: #080c12; /* app bg */
+  --neutral-10: #0f141c; /* card */
+  --neutral-20: #171e29; /* muted/input */
+  --neutral-30: #263141; /* border */
+  --neutral-40: #354255;
+  --neutral-50: #4b5a70;
+  --neutral-60: #738196;
+  --neutral-70: #9aa6b8;
+  --neutral-80: #c4ccd8;
+  --neutral-90: #e1e6ee;
+  --neutral-100: #f8fafc;
+
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --error: #f87171;
+  --info: #60a5fa;
+
+  --purple: #a78bfa;
+  --teal: #2dd4bf;
+  --indigo: #818cf8;
+  --pink: #f472b6;
+  --amber: #fb923c;
+
+  --background: var(--neutral-00);
+  --foreground: var(--neutral-90);
+
+  --card: var(--neutral-10);
+  --card-foreground: var(--neutral-90);
+
+  --popover: var(--neutral-10);
+  --popover-foreground: var(--neutral-90);
+
+  --primary: var(--primary-60);
+  --primary-foreground: #ffffff;
+
+  --secondary: var(--neutral-20);
+  --secondary-foreground: var(--neutral-90);
+
+  --muted: var(--neutral-20);
+  --muted-foreground: var(--neutral-70);
+
+  --accent: var(--primary-20);
+  --accent-foreground: var(--primary-90);
+
+  --destructive: var(--error);
+
+  --border: var(--neutral-30);
+  --input: var(--neutral-20);
+  --ring: var(--primary-60);
+
+  --shadow-soft: 0 12px 34px -20px rgb(0 0 0 / 0.75);
+  --shadow-panel: 0 20px 60px -28px rgb(0 0 0 / 0.85);
+}
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-destructive: var(--destructive);
+
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+
+  --color-purple: var(--purple);
+  --color-teal: var(--teal);
+  --color-indigo: var(--indigo);
+  --color-pink: var(--pink);
+  --color-amber: var(--amber);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --shadow-soft: 0 10px 30px -18px rgb(0 0 0 / 0.28);
+  --shadow-panel: 0 18px 55px -28px rgb(0 0 0 / 0.35);
+}
+
+/* =========================
+   🧱 BASE
+   ========================= */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    font-family: "Poppins", sans-serif;
+  }
+}
+
+.theme-orange {
+  --primary-00: #fff7ed;
+  --primary-10: #ffedd5;
+  --primary-20: #fed7aa;
+  --primary-30: #fdba74;
+  --primary-40: #fb923c;
+  --primary-50: #f97316;
+  --primary-60: #ea580c;
+  --primary-70: #c2410c;
+  --primary-80: #9a3412;
+  --primary-90: #7c2d12;
+  --primary-100: #431407;
+
+  --primary: var(--primary-60);
+  --ring: var(--primary-60);
+
+  --accent: var(--primary-10);
+  --accent-foreground: var(--primary-80);
+}
+
+.theme-purple {
+  --primary-00: #f5f3ff;
+  --primary-10: #ede9fe;
+  --primary-20: #ddd6fe;
+  --primary-30: #c4b5fd;
+  --primary-40: #a78bfa;
+  --primary-50: #8b5cf6;
+  --primary-60: #7c3aed;
+  --primary-70: #6d28d9;
+  --primary-80: #5b21b6;
+  --primary-90: #4c1d95;
+  --primary-100: #2e1065;
+
+  --primary: var(--primary-60);
+  --ring: var(--primary-60);
+
+  --accent: var(--primary-10);
+  --accent-foreground: var(--primary-80);
+}
+
+/* =========================
+   🎨 THEME: ORANGE
+   ========================= */
+
+[data-theme="orange"] {
+  --primary-60: #f97316;
+  --primary-70: #ea580c;
+  --primary-80: #c2410c;
+  --primary-90: #9a3412;
+  --primary-100: #7c2d12;
+
+  --primary: var(--primary-60);
+  --ring: var(--primary-60);
+
+  --accent: color-mix(in oklab, var(--primary-60) 15%, transparent);
+  --accent-foreground: #7c2d12;
+}
+
+/* =========================
+   🎨 THEME: PURPLE
+   ========================= */
+
+[data-theme="purple"] {
+  --primary-60: #8b5cf6;
+  --primary-70: #7c3aed;
+  --primary-80: #6d28d9;
+  --primary-90: #5b21b6;
+  --primary-100: #4c1d95;
+
+  --primary: var(--primary-60);
+  --ring: var(--primary-60);
+
+  --accent: color-mix(in oklab, var(--primary-60) 15%, transparent);
+  --accent-foreground: #4c1d95;
+}
+
+/* =========================
+   🎨 THEME VARIANTS
+   ========================= */
+
+/* 🔵 BLUE (default already exists) */
+
+/* 🟠 ORANGE */
+[data-theme="orange"] {
+  --primary-60: #f97316;
+  --primary-70: #ea580c;
+  --primary-80: #c2410c;
+}
+
+/* 🟣 PURPLE */
+[data-theme="purple"] {
+  --primary-60: #8b5cf6;
+  --primary-70: #7c3aed;
+  --primary-80: #6d28d9;
+}
+
+/* 🟢 EMERALD */
+[data-theme="emerald"] {
+  --primary-60: #10b981;
+  --primary-70: #059669;
+  --primary-80: #047857;
+}
+
+/* 🔴 ROSE */
+[data-theme="rose"] {
+  --primary-60: #f43f5e;
+  --primary-70: #e11d48;
+  --primary-80: #be123c;
+}
+
+/* 🟡 AMBER */
+[data-theme="amber"] {
+  --primary-60: #f59e0b;
+  --primary-70: #d97706;
+  --primary-80: #b45309;
+}
+
+/* 🧱 BRICK */
+[data-theme="brick"] {
+  --primary-60: #b91c1c;
+  --primary-70: #991b1b;
+  --primary-80: #7f1d1d;
+}
+
+/* 🟤 RUST */
+[data-theme="rust"] {
+  --primary-60: #c2410c;
+  --primary-70: #9a3412;
+  --primary-80: #7c2d12;
+}
+
+/* 🧊 CYAN */
+[data-theme="cyan"] {
+  --primary-60: #06b6d4;
+  --primary-70: #0891b2;
+  --primary-80: #0e7490;
+}
+
+/* 🟪 INDIGO */
+[data-theme="indigo"] {
+  --primary-60: #6366f1;
+  --primary-70: #4f46e5;
+  --primary-80: #4338ca;
+}
+
+@property --qc-border-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes qc-border-spin {
+  to {
+    --qc-border-angle: 360deg;
+  }
+}
+
+.qc-animated-border {
+  position: relative;
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(var(--card), var(--card)) padding-box,
+    conic-gradient(
+        from var(--qc-border-angle),
+        transparent 0deg,
+        transparent 300deg,
+        var(--primary) 330deg,
+        transparent 360deg
+      )
+      border-box;
+  background-clip: padding-box, border-box;
+}
+
+.qc-animated-border:hover {
+  border-color: transparent;
+  animation: qc-border-spin 4.8s linear infinite;
+}
+
+@layer base {
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus,
+  textarea:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+    box-shadow: 0 0 0 1000px transparent inset !important;
+    -webkit-text-fill-color: var(--foreground) !important;
+    caret-color: var(--foreground) !important;
+    transition: background-color 9999s ease-in-out 0s !important;
+  }
+
+  .dark input:-webkit-autofill,
+  .dark input:-webkit-autofill:hover,
+  .dark input:-webkit-autofill:focus,
+  .dark input:-webkit-autofill:active,
+  .dark textarea:-webkit-autofill,
+  .dark textarea:-webkit-autofill:hover,
+  .dark textarea:-webkit-autofill:focus,
+  .dark textarea:-webkit-autofill:active {
+    -webkit-text-fill-color: var(--foreground) !important;
+    caret-color: var(--foreground) !important;
+  }
+}
+
+/* For Sql Editor Dark Mode Compatiblitly */
+.monaco-editor,
+.monaco-editor .margin,
+.monaco-editor-background,
+.monaco-editor .inputarea.ime-input,
+.monaco-editor .view-lines,
+.monaco-editor .view-line {
+  background-color: var(--background) !important;
+}
+
+.monaco-editor,
+.monaco-editor .view-line,
+.monaco-editor .mtk1 {
+  color: var(--foreground) !important;
+}
+
+.monaco-editor .current-line,
+.monaco-editor .view-overlays .current-line {
+  background-color: var(--muted) !important;
+  border-color: transparent !important;
+}
+
+.monaco-editor .squiggly-error,
+.monaco-editor .squiggly-warning,
+.monaco-editor .squiggly-info {
+  border-bottom-color: transparent !important;
+  background: transparent !important;
+}
+
+.monaco-editor .suggest-widget,
+.monaco-editor .monaco-hover,
+.monaco-editor .parameter-hints-widget {
+  z-index: 999999 !important;
+}
+
+.monaco-editor .suggest-widget {
+  background-color: var(--card) !important;
+  color: var(--foreground) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow-panel) !important;
+  overflow: hidden !important;
+}
+
+.monaco-editor .suggest-widget .monaco-list,
+.monaco-editor .suggest-widget .monaco-list-rows,
+.monaco-editor .suggest-widget .monaco-list-row {
+  background-color: var(--card) !important;
+  color: var(--foreground) !important;
+}
+
+.monaco-editor .suggest-widget .monaco-list-row.focused,
+.monaco-editor .suggest-widget .monaco-list-row:hover {
+  background-color: var(--muted) !important;
+  color: var(--foreground) !important;
+}
+
+.monaco-editor .suggest-widget .monaco-highlighted-label,
+.monaco-editor .suggest-widget .highlight {
+  color: var(--primary) !important;
+}
+
+.monaco-editor .suggest-widget .details,
+.monaco-editor .suggest-widget .readMore,
+.monaco-editor .suggest-widget .signature-label,
+.monaco-editor .suggest-widget .docs {
+  color: var(--muted-foreground) !important;
+}
+
+.monaco-hover,
+.monaco-hover .monaco-hover-content {
+  background-color: var(--card) !important;
+  color: var(--foreground) !important;
+  border-color: var(--border) !important;
+}
+
+.monaco-editor .monaco-editor-overlaymessage {
+  background-color: var(--destructive) !important;
+  color: #ffffff !important;
+  border: 0px solid transparent !important;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow-panel) !important;
+}
+
+.monaco-editor .monaco-editor-overlaymessage .message {
+  color: #ffffff !important;
+}
+
+.monaco-editor .monaco-editor-overlaymessage .anchor.top {
+  border-bottom-color: var(--destructive) !important;
+}
+
+.monaco-editor .monaco-editor-overlaymessage .anchor.below {
+  border-top-color: var(--destructive) !important;
+}
+
+/* ---------------------------------------------------------------- live work --
+ * One visual language for "this is still happening": queued, running, started --
+ * anything that has not reached a terminal state. A job that is working should be
+ * obvious at a glance in a list of finished ones, without the page feeling busy.
+ *
+ * Two parts, both deliberately quiet: a slow breath on the surface, and a dot that
+ * pulses a halo. Nothing spins, because a spinner reads as "blocked, wait here",
+ * and these rows are not blocking anyone.
+ */
+@keyframes dc-live-breathe {
+  0%,
+  100% {
+    box-shadow: inset 3px 0 0 0 var(--primary), 0 0 0 0 color-mix(in oklab, var(--primary) 18%, transparent);
+  }
+  50% {
+    box-shadow: inset 3px 0 0 0 var(--primary), 0 0 0 4px color-mix(in oklab, var(--primary) 8%, transparent);
+  }
+}
+
+@keyframes dc-live-halo {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 55%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.dc-live {
+  animation: dc-live-breathe 2.4s ease-in-out infinite;
+}
+
+.dc-live-dot {
+  position: relative;
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--primary);
+  animation: dc-live-halo 2s ease-out infinite;
+}
+
+/* Someone who has asked for less motion still needs to see which rows are live --
+ * so the marker stays and only the movement goes. */
+@media (prefers-reduced-motion: reduce) {
+  .dc-live {
+    animation: none;
+    box-shadow: inset 3px 0 0 0 var(--primary);
+  }
+
+  .dc-live-dot {
+    animation: none;
+  }
+}
+
+/* When a live run finishes, its duration jumps from the locally-counted figure to the
+ * real one. The brief highlight says "this number just settled" so the change reads as
+ * a correction arriving rather than as the page glitching. */
+@keyframes dc-settle {
+  0% {
+    background-color: color-mix(in oklab, var(--success) 22%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.dc-settle {
+  animation: dc-settle 1.8s ease-out 1;
+  border-radius: 0.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-settle {
+    animation: none;
+  }
+}

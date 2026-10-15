@@ -1,0 +1,94 @@
+def build_failure_message(
+    check_mapping_name,
+    table_name,
+    column_name,
+    db_schema,
+    issue_rows,
+    detail1,
+    actual_columns=None,
+    actual_data_types=None,
+    column_order=None,       
+    column_datatype=None     
+):
+    if check_mapping_name == "file_availability_check":
+        return f"Table not found in schema {db_schema}: {table_name}"
+
+    elif check_mapping_name == "column_name_check":
+
+        if not column_order:
+            raise ValueError("column_order is missing")
+
+        # Fetch keys of colum_order to get column_name
+        expected_columns = list(column_order.keys())
+        actual_columns = actual_columns
+
+        missing_cols = list(set(expected_columns) - set(actual_columns))
+
+        return f"Missing columns {', '.join(missing_cols)} from expected schema"
+
+    elif check_mapping_name == "column_order_check":
+
+        if not column_order:
+            raise ValueError("column_order is missing")
+
+        if actual_columns is None:
+            raise ValueError("Actual columns not fetched")
+        
+        # Sort columns as per column order 
+        expected_columns = sorted(column_order, key=column_order.get)
+        actual_columns = actual_columns
+
+        mismatches = []
+        # loop throught expected and actual columns 
+        for i, (exp, act) in enumerate(zip(expected_columns, actual_columns)):
+            if exp != act:
+                mismatches.append(
+                    f"position {i+1} expected {exp} but found {act}"
+                )
+
+        return f"Column order mismatch in table {table_name}: " + ", ".join(mismatches)
+
+    elif check_mapping_name == "datatype_check":
+
+        if not column_datatype:
+            raise ValueError("column_datatype is missing")
+
+        if actual_data_types is None:
+            raise ValueError("Actual data types not fetched")
+
+        expected_data_types = column_datatype
+
+        actual_data_types = actual_data_types
+
+        mismatches = []
+        for col, exp_type in expected_data_types.items():
+            act_type = actual_data_types.get(col)
+            if act_type != exp_type:
+                mismatches.append(
+                    f"{col}(expected {exp_type}, got {act_type})"
+                )
+
+        return f"Datatype in table does not match expected schema: " + ", ".join(mismatches)
+
+    elif check_mapping_name == "length_check":
+        return f"Length of {detail1} was expected, but {issue_rows} rows were found with mismatched values"
+
+    elif check_mapping_name == "format_check":
+        return f"{issue_rows} rows do not match the expected format {detail1}"
+
+    elif check_mapping_name == "lov_check":
+        return f"{issue_rows} rows contain values outside the allowed list {detail1}"
+
+    elif check_mapping_name == "null_check":
+        return f"No null values were expected, but {issue_rows} rows were found with null values"
+
+    elif check_mapping_name == "duplicate_check":
+        return f"Unique values were expected, but {issue_rows} rows were found with duplicate values"
+
+    elif check_mapping_name == "primary_key_check":
+        return f"Primary Key constraint is failing on field '{column_name}'"
+
+    elif check_mapping_name == "ri_check":
+        return f"Matching parent records were expected, but {issue_rows} rows were found violating referential integrity"
+
+    return f"{issue_rows} rows failed for check_mapping_name {check_mapping_name}"

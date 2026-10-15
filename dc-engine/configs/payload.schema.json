@@ -1,0 +1,61 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "DataCortex pipeline payload",
+    "description": "Passed to trigger.py (file path or --json). One check_type per payload: the engine reads check_type from the first check element only, so send traditional and custom_check runs as separate payloads.",
+    "type": "array",
+    "minItems": 2,
+    "items": [
+        {
+            "type": "object",
+            "required": ["user_id"],
+            "properties": {"user_id": {"type": "string", "format": "uuid"}},
+            "additionalProperties": false
+        }
+    ],
+    "additionalItems": {
+        "oneOf": [
+            {
+                "title": "traditional check",
+                "type": "object",
+                "required": ["check_type", "config_id", "checklist"],
+                "properties": {
+                    "check_type": {"const": "traditional"},
+                    "config_id": {"type": "string", "pattern": "^(DBC|FBC)\\d+$"},
+                    "checklist": {
+                        "oneOf": [
+                            {"type": "string", "enum": ["default", "DEFAULT", "Default"]},
+                            {
+                                "type": "object",
+                                "description": "field name -> 'default' or list of check mapping names",
+                                "additionalProperties": {
+                                    "oneOf": [
+                                        {"type": "string", "enum": ["default"]},
+                                        {"type": "array", "items": {"type": "string"}}
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                },
+                "additionalProperties": false
+            },
+            {
+                "title": "custom check",
+                "type": "object",
+                "required": ["check_type", "check_id"],
+                "properties": {
+                    "check_type": {"const": "custom_check"},
+                    "check_id": {
+                        "oneOf": [
+                            {"type": "string", "pattern": "^CB\\d{3}$"},
+                            {"type": "array", "items": {"type": "string", "pattern": "^CB\\d{3}$"}}
+                        ]
+                    },
+                    "connection_id": {"type": "string"},
+                    "check_category": {"type": "string"}
+                },
+                "additionalProperties": false
+            }
+        ]
+    }
+}

@@ -1,0 +1,256 @@
+// Source: dbdiagram.io "Latest DC ERD"
+//   https://dbdiagram.io/d/Latest-DC-ERD-6a0cb840697f99c167b663a6
+// Captured: 2026-10-05 — team's latest ERD, pasted by Rajan
+// Role in comparison: team-maintained design version
+//
+// *** AMENDED 2026-10-06 *** See ERD_AMENDMENTS.md for the rationale on each
+// change. Amendments are marked [AMENDED] inline. Paste this file into
+// dbdiagram.io to update the team ERD.
+
+// ======================================================================
+//  CHECK LIBRARY TABLES
+// ======================================================================
+
+Table traditional_checks_library {
+  check_id varchar [pk, increment]
+  check_mapping_name varchar [unique, not null, note: 'Hidden from UI']
+  check_name varchar [unique, note: 'Display Name - Unique', not null]
+  check_description text
+  abort boolean [note: 'Hidden from UI', not null]
+  user_id uuid [note: '[AMENDED] added - present in implementation']
+  enabled boolean [default: true, note: '[AMENDED] added']
+  created_at timestamp [note: '[AMENDED] added']
+  updated_at timestamp [note: '[AMENDED] added']
+}
+
+// ======================================================================
+//  CONNECTION TABLES
+// ======================================================================
+
+Table database_connection {
+  connection_id varchar [pk, increment]
+  connection_name varchar [unique, note: 'Display Name - Unique', not null]
+  database_type enum [not null]
+  host varchar [not null, note: '[AMENDED] was nullable; Snowflake is not implemented, and every working path requires host+port']
+  port integer [not null, note: '[AMENDED] was nullable; see host']
+  database_name varchar [not null]
+  username varchar [not null]
+  password varchar [not null]
+  db_schema varchar [not null]
+  additional_params jsonb [note: 'To support other databases']
+  user_id uuid [not null]
+  created_at timestamp [not null]
+  updated_at timestamp
+  deactivated_at timestamp
+  enabled bool [not null]
+}
+
+Table file_connection {
+  connection_id varchar [pk, increment]
+  connection_name varchar [unique, note: 'Display Name - Unique', not null]
+  storage_type enum [not null]
+  bucket_or_container_name varchar [not null]
+  region varchar [not null]
+  access_key_id varchar [not null]
+  secret_access_key varchar [not null]
+  additional_params jsonb [note: 'To support other databases']
+  user_id uuid [not null]
+  created_at timestamp [not null]
+  updated_at timestamp
+  deactivated_at timestamp
+  enabled bool [not null]
+}
+
+// ======================================================================
+//  CONFIG TABLES
+// ======================================================================
+
+// -------- Database-based
+Table db_based_checks_config {
+  config_id varchar [pk, increment]
+  config_name varchar [unique, note: 'Display Name - Unique', not null]
+  check_category int [not null]
+  workstream int [not null]
+  impacted_downstream array_int [not null]
+  data_source int [not null]
+  source_connection_id varchar [not null]
+  source_table_name varchar [not null]
+  target_connection_id varchar [not null]
+  target_table_prefix varchar [not null]
+  landing_table boolean [not null]
+  landing_table_name varchar [note: 'Optional; Mandatory if Landing Table is enabled']
+  user_id uuid [not null]
+  created_at timestamp [not null]
+  updated_at timestamp
+  deactivated_at timestamp
+  enabled bool [not null]
+}
+
+Ref: database_connection.connection_id < db_based_checks_config.source_connection_id
+Ref: database_connection.connection_id < db_based_checks_config.target_connection_id
+
+// -------- File-based
+Table file_based_checks_config {
+  config_id varchar [pk, increment]
+  config_name varchar [unique, note: 'Display Name - Unique', not null]
+  check_category int [not null]
+  workstream int [not null]
+  impacted_downstream array_int [not null]
+  data_source int [not null]
+  source_connection_id varchar [not null]
+  source_file_type enum [not null]
+  source_file_delimiter enum [note: 'Optional; Mandatory if File Type is CSV']
+  source_file_path varchar [note: 'Optional; Mandatory if file is in a folder']
+  source_file_name varchar [note: 'Optional Pattern', not null]
+  target_connection_id varchar [not null]
+  target_table_prefix varchar [not null]
+  landing_table boolean [not null]
+  landing_table_name varchar [note: 'Optional; Mandatory if Landing Table is enabled']
+  user_id uuid [not null]
+  created_at timestamp [not null]
+  updated_at timestamp
+  deactivated_at timestamp
+  enabled bool [not null]
+}
+
+Ref: file_connection.connection_id < file_based_checks_config.source_connection_id
+Ref: database_connection.connection_id < file_based_checks_config.target_connection_id
+
+// -------- Custom Business Checks
+Table custom_business_checks_config {
+  check_id varchar [pk, increment] // Same as config_id
+  check_name varchar [unique, note: 'Display Name - Unique', not null]
+  check_description text [note: 'Optional']
+  check_category int [not null]
+  workstream int [not null]
+  impacted_downstream array_int [not null]
+  data_source int [not null]
+  source_connection_id varchar [not null]
+  target_connection_id varchar [not null]
+  target_table_prefix varchar [not null]
+  sql_query text [not null]
+  criticality enum [not null]
+  error_message varchar [not null]
+  user_id uuid [not null]
+  created_at timestamp [not null]
+  updated_at timestamp
+  deactivated_at timestamp
+  enabled bool [not null]
+}
+
+Ref: database_connection.connection_id < custom_business_checks_config.source_connection_id
+Ref: database_connection.connection_id < custom_business_checks_config.target_connection_id
+
+// ======================================================================
+//  TRADITIONAL CONFIG DETAILS TABLE
+// ======================================================================
+
+Table traditional_config_details {
+  tc_req_id int [pk, increment]
+  config_id varchar [not null]
+  field varchar [not null]
+  column_order int [not null]
+  column_datatype enum [not null]
+  primary_key_check boolean [not null]
+  primary_key_check_criticality enum
+  null_check boolean [not null]
+  null_check_criticality enum
+  duplicate_check boolean [not null]
+  duplicate_check_criticality enum
+  length_check boolean [not null]
+  expected_length integer
+  length_check_criticality enum
+  format_check boolean [not null]
+  format_regex varchar
+  format_check_criticality enum
+  lov_check boolean [not null]
+  lovs text
+  lov_check_criticality enum
+  ri_check boolean [not null]
+  ri_connection_id varchar // DB
+  ri_reference_table varchar
+  ri_field_name varchar
+  ri_check_criticality enum
+  enabled boolean [default: true, note: '[AMENDED] added - present in implementation']
+  user_id uuid [note: '[AMENDED] added']
+  created_at timestamp [note: '[AMENDED] added']
+  updated_at timestamp [note: '[AMENDED] added']
+  deactivated_at timestamp [note: '[AMENDED] added']
+}
+
+// config_id comes from both database-based & file-based config tables
+Ref: traditional_config_details.config_id > db_based_checks_config.config_id
+Ref: traditional_config_details.config_id > file_based_checks_config.config_id
+Ref: database_connection.connection_id < traditional_config_details.ri_connection_id
+
+// ======================================================================
+//  LABELLING/TAGGING
+// ======================================================================
+
+Table qc_tags {
+  id int [pk, increment]
+  type enum [not null]
+  title varchar [not null]
+  description text
+  created_at timestamp [not null]
+  updated_at timestamp
+  deactivated_at timestamp
+  enabled boolean [not null]
+  user_id uuid [note: '[AMENDED] added - present in implementation']
+}
+
+Ref: qc_tags.id < file_based_checks_config.check_category
+Ref: qc_tags.id < db_based_checks_config.check_category
+Ref: qc_tags.id < custom_business_checks_config.check_category
+Ref: qc_tags.id < results.check_category
+
+Ref: qc_tags.id < file_based_checks_config.workstream
+Ref: qc_tags.id < db_based_checks_config.workstream
+Ref: qc_tags.id < custom_business_checks_config.workstream
+Ref: qc_tags.id < results.workstream
+
+// [AMENDED] NOTE: the four impacted_downstream refs below are DESIGN INTENT ONLY.
+// impacted_downstream is an integer ARRAY in every implementation, and PostgreSQL
+// cannot place a foreign key on an array element. These cannot be enforced by the
+// database. Kept here to document which library the ids come from.
+Ref: qc_tags.id < file_based_checks_config.impacted_downstream
+Ref: qc_tags.id < db_based_checks_config.impacted_downstream
+Ref: qc_tags.id < custom_business_checks_config.impacted_downstream
+Ref: qc_tags.id < results.impacted_downstream
+
+Ref: qc_tags.id < file_based_checks_config.data_source
+Ref: qc_tags.id < db_based_checks_config.data_source
+Ref: qc_tags.id < custom_business_checks_config.data_source
+Ref: qc_tags.id < results.data_source
+
+// ======================================================================
+//  DATA CORTEX LOGS/RESULT
+// ======================================================================
+
+Table results {
+  check_execution_id int [pk, increment]
+  job_id varchar [not null]
+  job_timestamp datetime [not null]
+  user_id uuid [not null]
+  check_id varchar [not null]
+  check_name varchar [not null]
+  check_description varchar [note: 'Optional']
+  config_id varchar [not null]
+  config_name varchar [not null]
+  check_category int [not null]
+  workstream int [not null]
+  impacted_downstream array_int [not null]
+  data_source int [not null]
+  file_or_table_name varchar [not null]
+  check_type enum [not null]
+  field varchar [not null]
+  abort boolean [not null]
+  check_status enum [not null]
+  criticality enum
+  issue_rows varchar [not null]
+  passed_rows varchar [not null]
+  failure_reason varchar
+  issue_status enum
+  created_at timestamp [note: '[AMENDED] added - present in implementation']
+  updated_at timestamp [note: '[AMENDED] added']
+}

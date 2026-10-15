@@ -1,0 +1,293 @@
+// Source: DataCortex pipeline backend — init-db script
+//   DataCortex/artifacts/temp_init_db.py  (CREATE TABLE statements, as written)
+// Plus deltas from:
+//   DataCortex/migrations/2026-09-28_fix_plan_batch0_precheck.sql  (read-only checks)
+//   DataCortex/migrations/2026-09-28_fix_plan_batch1.sql           (DDL changes)
+// Captured: 2026-10-05
+// Role in comparison: pipeline backend init/migration scripts
+//
+// ---------------------------------------------------------------------------
+// READ THIS BEFORE COMPARING
+//
+// 1. temp_init_db.py targets a LOCAL database ("datacortex_local" on localhost
+//    with hardcoded postgres/password) — it is a local bootstrap, not the
+//    script that built the shared dev RDS.
+//
+// 2. The batch1 migration ALTERs columns that temp_init_db.py never creates
+//    (database_connection.created_at, .enabled, a users table, soft deletes).
+//    So these two files do not describe the same database. The migrations were
+//    written against the live schema, which comes from the SQLAlchemy ORM in
+//    Data_Code/ — a separate source, not captured here.
+//
+// 3. Where batch1 changes something defined below, the change is noted inline
+//    as "MIGRATION batch1 step N". Columns the migration touches that do not
+//    exist here are listed at the bottom under MIGRATION-ONLY.
+// ---------------------------------------------------------------------------
+
+// ======================================================================
+//  CHECK LIBRARY TABLES
+// ======================================================================
+
+Table traditional_checks_library {
+  check_id bigserial [pk, increment, note: 'DIFFERS: varchar in ERD and monorepo']
+  check_mapping_name varchar(255) [unique, not null]
+  check_name varchar(255) [unique, not null]
+  check_description text
+  check_category varchar(255) [not null, note: 'EXTRA vs ERD; free-text, not an FK']
+  workstream varchar(255) [not null, note: 'EXTRA vs ERD; free-text, not an FK']
+  check_function varchar(255) [not null, note: 'EXTRA vs ERD and monorepo']
+  abort boolean [not null]
+}
+
+// Second, near-identical copy of the same library with a varchar PK.
+Table traditional_checks_library_rev {
+  check_id varchar [pk]
+  check_mapping_name varchar [unique, not null]
+  check_name varchar [unique, not null]
+  check_description text
+  check_category varchar [not null]
+  workstream varchar [not null]
+  check_function varchar [not null]
+  abort boolean [not null]
+}
+
+// Present in no other version.
+Table ml_checks_library {
+  check_id bigserial [pk, increment]
+  check_name varchar(255) [unique, not null]
+  check_description text
+  check_category varchar(255) [not null]
+  workstream varchar(255) [not null]
+  check_function varchar(255) [not null]
+  abort boolean [not null]
+}
+
+// ======================================================================
+//  CONNECTION TABLES
+// ======================================================================
+
+Table database_connection {
+  connection_id bigserial [pk, increment, note: 'DIFFERS: varchar (DB_0001 style) in ERD and monorepo']
+  connection_name varchar(255) [unique, not null]
+  database_type varchar(100) [not null, note: 'plain varchar, not an enum. MIGRATION batch1 step 10 canonicalizes postgresql -> postgres']
+  host varchar(255) [not null]
+  port integer [not null]
+  database_name varchar(255) [not null]
+  username varchar(255) [not null]
+  password text [not null, note: 'DIFFERS: varchar elsewhere']
+  db_schema varchar(255) [not null]
+  additional_params text [note: 'DIFFERS: jsonb in ERD and monorepo']
+  // MISSING vs ERD and monorepo: user_id, enabled, created_at, updated_at, deactivated_at
+}
+
+Table file_connection {
+  connection_id bigserial [pk, increment, note: 'DIFFERS: varchar (FC_0001 style) in ERD and monorepo']
+  connection_name varchar(255) [unique, not null]
+  storage_type varchar(100) [not null, note: 'plain varchar, not an enum']
+  bucket_or_container_name varchar(255) [not null]
+  region varchar(255) [not null]
+  access_key_id varchar(255) [not null]
+  secret_access_key text [not null]
+  endpoint_url text [note: 'EXTRA vs ERD; commented out in the monorepo version']
+  additional_params text [note: 'DIFFERS: jsonb in ERD and monorepo']
+  // MISSING vs ERD and monorepo: user_id, enabled, created_at, updated_at, deactivated_at
+}
+
+// ======================================================================
+//  CONFIG TABLES
+// ======================================================================
+
+// -------- Database-based
+Table db_based_checks_config {
+  config_id varchar [pk, note: 'no length limit; varchar(10) on file_based below']
+  config_name varchar [unique, not null]
+  check_category varchar [not null, note: 'DIFFERS: free-text varchar; integer FK to qc_tags elsewhere']
+  workstream varchar [not null, note: 'DIFFERS: free-text varchar; integer FK to qc_tags elsewhere']
+  impacted_downstream "integer[]" [not null, note: 'MIGRATION batch1 step 7 converts this to a single nullable integer FK to impacted_downstream_library — which contradicts the array in every other version']
+  data_source varchar [not null, note: 'DIFFERS: free-text varchar; integer FK to qc_tags elsewhere']
+  source_connection_id varchar [not null]
+  source_table_name varchar [not null]
+  target_connection_id varchar [not null]
+  target_table_prefix varchar [not null]
+  landing_table boolean [not null, note: 'MIGRATION batch1 step 12 sets DEFAULT TRUE']
+  landing_table_name varchar
+  // MISSING vs ERD and monorepo: user_id, enabled, created_at, updated_at, deactivated_at
+}
+
+// NOTE: these FKs point at database_connection.connection_id, which is
+// BIGSERIAL here while the referencing column is varchar — the types do not
+// match, so this script cannot actually run as written against itself.
+Ref: database_connection.connection_id < db_based_checks_config.source_connection_id
+Ref: database_connection.connection_id < db_based_checks_config.target_connection_id
+
+// -------- File-based
+Table file_based_checks_config {
+  config_id varchar(10) [pk]
+  config_name varchar(200) [unique, not null]
+  check_category varchar(200) [not null, note: 'DIFFERS: free-text varchar']
+  workstream varchar(200) [not null, note: 'DIFFERS: free-text varchar']
+  impacted_downstream "integer[]" [not null, note: 'MIGRATION batch1 step 7 converts to nullable integer FK']
+  data_source varchar(200) [not null, note: 'DIFFERS: free-text varchar']
+  source_connection_id varchar(100) [not null, note: 'no FK constraint declared, unlike db_based above']
+  source_file_type varchar(200) [not null, note: 'plain varchar, not an enum']
+  source_file_delimiter varchar [note: 'plain varchar, not an enum']
+  source_file_path varchar
+  source_file_name varchar(200) [not null]
+  target_connection_id varchar(100) [not null, note: 'no FK constraint declared']
+  target_table_prefix varchar(255) [not null]
+  landing_table boolean [not null, default: false, note: 'MIGRATION batch1 step 12 sets DEFAULT TRUE']
+  landing_table_name varchar(255)
+  // MISSING vs ERD and monorepo: user_id, enabled, created_at, updated_at, deactivated_at
+  // MIGRATION batch1 step 11 drops a schema_file_name column that this script
+  // does not create — further evidence the two files describe different databases.
+}
+
+// -------- Custom Business Checks
+Table custom_business_checks_config {
+  check_id bigserial [pk, increment, note: 'DIFFERS: varchar (CB_0001 style) in ERD and monorepo']
+  check_name varchar(255) [unique, not null]
+  check_description text
+  check_category varchar(255) [not null, note: 'DIFFERS: free-text varchar']
+  workstream varchar(255) [not null, note: 'DIFFERS: free-text varchar']
+  impacted_downstream varchar(255) [not null, note: 'DIFFERS: plain varchar here, integer[] in db_based/file_based above and in all other versions. MIGRATION batch1 step 7 converts to nullable integer FK']
+  data_source varchar(255) [not null, note: 'DIFFERS: free-text varchar']
+  source_connection_id bigint [note: 'DIFFERS: varchar elsewhere; also nullable here, NOT NULL elsewhere']
+  target_connection_id bigint [note: 'DIFFERS: varchar elsewhere; also nullable here']
+  target_table_prefix varchar(255) [note: 'DIFFERS: nullable here, NOT NULL elsewhere']
+  sql_query text [not null]
+  criticality varchar(100) [note: 'DIFFERS: nullable here, NOT NULL enum elsewhere']
+  error_message text [note: 'DIFFERS: nullable here, NOT NULL varchar elsewhere']
+  // MIGRATION batch1 step 9 ADDS: source_table_name varchar(255) — present in
+  // no other version.
+  // MISSING vs ERD and monorepo: user_id, enabled, created_at, updated_at, deactivated_at
+}
+
+// ======================================================================
+//  TRADITIONAL CONFIG DETAILS TABLE
+// ======================================================================
+
+Table traditional_config_details {
+  tc_req_id integer [pk, increment, note: 'GENERATED ALWAYS AS IDENTITY']
+  config_id varchar(10) [not null, note: 'no FK constraint declared in any direction']
+  field varchar(200) [not null]
+  primary_key_check boolean [not null, default: false]
+  primary_key_check_criticality varchar
+  null_check boolean [not null, default: false]
+  null_check_criticality varchar(20)
+  length_check boolean [not null, default: false]
+  expected_length integer
+  length_check_criticality varchar(20)
+  format_check boolean [not null, default: false]
+  format_regex varchar(500)
+  format_check_criticality varchar(20)
+  lov_check boolean [not null, default: false]
+  lovs text
+  lov_check_criticality varchar(20)
+  duplicate_check boolean [not null, default: false]
+  duplicate_check_criticality varchar(20)
+  ri_check boolean [not null, default: false]
+  ri_reference_table varchar(200)
+  ri_field_name varchar(200)
+  ri_check_criticality varchar
+  column_datatype varchar(255) [not null, note: 'DIFFERS: enum elsewhere. Also declared LAST here, not 4th']
+  ri_connection_id varchar
+  column_order integer [not null, note: 'declared last here; 4th column in ERD and monorepo']
+  // MIGRATION batch1 steps 5-6 ADD: UNIQUE(config_id, field) and
+  // UNIQUE(config_id, column_order) — present in no other version.
+  // All criticality columns are plain varchar here, enum elsewhere.
+}
+
+// ======================================================================
+//  LABELLING/TAGGING
+// ======================================================================
+//
+// MAJOR STRUCTURAL DIFFERENCE: this version has FOUR separate label tables,
+// each with its own PK and naming convention. The ERD and the monorepo both
+// collapse all four into a single qc_tags table discriminated by a type enum.
+// There is no qc_tags table in this version.
+
+Table category_label_library {
+  category_id bigserial [pk, increment]
+  category_name varchar(255) [unique, not null]
+  category_created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  category_description text
+}
+
+Table workstream_library {
+  workstream_id bigserial [pk, increment]
+  workstream_name varchar(255) [unique, not null]
+  workstream_created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  workstream_description text
+}
+
+Table impacted_downstream_library {
+  impacted_downstream_id bigserial [pk, increment]
+  impacted_downstream_name varchar(255) [unique, not null]
+  impacted_downstream_created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  impacted_downstream_description text
+}
+
+Table data_source_library {
+  data_source_id bigserial [pk, increment]
+  data_source_name varchar(255) [unique, not null]
+  data_source_created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  data_source_description text
+}
+
+// No FK wires any config table to any of these four libraries in this script.
+// The config tables hold the labels as free text instead.
+// MIGRATION batch1 step 7 adds the impacted_downstream FK only.
+
+// ======================================================================
+//  DATA CORTEX LOGS/RESULT
+// ======================================================================
+
+Table results {
+  check_execution_id bigserial [pk, increment]
+  job_id varchar(255) [not null]
+  job_timestamp timestamp [not null]
+  check_id varchar(255) [not null]
+  check_name varchar(255) [not null]
+  check_description text [note: 'DIFFERS: varchar elsewhere']
+  config_id varchar(255) [not null]
+  config_name varchar(255) [not null]
+  check_category varchar(255) [not null, note: 'DIFFERS: free-text varchar; integer FK elsewhere']
+  workstream varchar(255) [not null, note: 'DIFFERS: free-text varchar; integer FK elsewhere']
+  impacted_downstream varchar(255) [note: 'DIFFERS: nullable varchar here; NOT NULL integer[] elsewhere']
+  data_source varchar(255) [not null, note: 'DIFFERS: free-text varchar; integer FK elsewhere']
+  file_or_table_name varchar(255) [not null]
+  check_type varchar(255) [not null, note: 'plain varchar, not an enum']
+  field varchar(255) [note: 'already nullable here; MIGRATION batch1 step 8 drops NOT NULL on the live schema']
+  abort boolean [note: 'DIFFERS: nullable here, NOT NULL elsewhere']
+  check_status varchar(100) [note: 'DIFFERS: nullable here, NOT NULL enum elsewhere']
+  criticality varchar(100)
+  issue_rows varchar(255) [note: 'DIFFERS: nullable here, NOT NULL elsewhere']
+  passed_rows varchar(255) [note: 'DIFFERS: nullable here, NOT NULL elsewhere']
+  failure_reason text [note: 'DIFFERS: varchar elsewhere']
+  issue_status varchar(100) [note: 'plain varchar, not an enum; no default']
+  // MISSING vs ERD and monorepo: user_id (NOT NULL in both)
+  // MISSING vs monorepo: created_at, updated_at
+}
+
+// ======================================================================
+//  MIGRATION-ONLY — referenced by batch0/batch1 but never created here
+// ======================================================================
+//
+// These confirm the live schema has objects this init script does not define:
+//
+//   users                                  — batch0 check 2, batch1 step 3
+//                                            (FK target for database_connection.user_id)
+//   database_connection.user_id            — batch1 step 3 converts varchar -> uuid
+//   database_connection.created_at         — batch0 check 3 selects it
+//   database_connection.enabled            — batch1 step 3 comment references it
+//   file_based_checks_config.schema_file_name — batch1 step 11 drops it
+//
+// Sequences created by batch1 step 4 (app-managed ID allocation; the monorepo
+// does the same job with its id_sequences table):
+//   database_connection_id_seq, file_connection_id_seq,
+//   db_based_checks_config_id_seq, file_based_checks_config_id_seq,
+//   custom_business_checks_config_id_seq
+//
+// ID prefixes implied by batch1 step 4 regexes: DB####, FC####, DBC####,
+// FBC####, CB#### — note NO underscore, while the monorepo comments say
+// DB_0001, FC_0001, DBC_0001, FBC_0001, CB_0001.

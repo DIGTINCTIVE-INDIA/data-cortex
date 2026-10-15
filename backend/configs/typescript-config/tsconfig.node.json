@@ -1,0 +1,9 @@
+{
+	"extends": "./tsconfig.common.json",
+	"compilerOptions": {
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
+		"experimentalDecorators": true,
+		"types": ["node"]
+	}
+}

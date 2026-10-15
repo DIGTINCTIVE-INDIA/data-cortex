@@ -1,0 +1,269 @@
+table,column,v1_erd_type,v1_null,v2_mono_type,v2_null,v3_pipe_type,v3_null,v4_live_type,v4_null,v2_vs_anchor,v3_vs_anchor,v4_vs_anchor
+traditional_checks_library,check_id,varchar,NOT NULL,varchar,NOT NULL,bigserial,NOT NULL,varchar,NOT NULL,match,type,match
+traditional_checks_library,check_mapping_name,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NOT NULL,varchar,NOT NULL,match,match,match
+traditional_checks_library,check_name,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NOT NULL,varchar,NOT NULL,match,match,match
+traditional_checks_library,check_description,text,NULL,text,NULL,text,NULL,text,NULL,match,match,match
+traditional_checks_library,abort,boolean,NOT NULL,boolean,NOT NULL,boolean,NOT NULL,boolean,NOT NULL,match,match,match
+traditional_checks_library,user_id,-,-,uuid,NOT NULL,-,-,uuid,NULL,extra,absent,extra
+traditional_checks_library,enabled,-,-,boolean,NOT NULL,-,-,boolean,NULL,extra,absent,extra
+traditional_checks_library,created_at,-,-,timestamp,NOT NULL,-,-,timestamp,NULL,extra,absent,extra
+traditional_checks_library,updated_at,-,-,timestamp,NULL,-,-,timestamp,NULL,extra,absent,extra
+traditional_checks_library,check_category,-,-,-,-,varchar(255),NOT NULL,-,-,absent,extra,absent
+traditional_checks_library,workstream,-,-,-,-,varchar(255),NOT NULL,-,-,absent,extra,absent
+traditional_checks_library,check_function,-,-,-,-,varchar(255),NOT NULL,varchar,NOT NULL,absent,extra,extra
+database_connection,connection_id,varchar,NOT NULL,varchar,NOT NULL,bigserial,NOT NULL,varchar,NOT NULL,match,type,match
+database_connection,connection_name,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NOT NULL,varchar,NOT NULL,match,match,match
+database_connection,database_type,enum,NOT NULL,database_type_enum,NOT NULL,varchar(100),NOT NULL,database_type_enum,NOT NULL,match,type,match
+database_connection,host,varchar,NULL,varchar,NOT NULL,varchar(255),NOT NULL,varchar,NULL,null,null,match
+database_connection,port,integer,NULL,integer,NOT NULL,integer,NOT NULL,integer,NULL,null,null,match
+database_connection,database_name,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NOT NULL,varchar,NOT NULL,match,match,match
+database_connection,username,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NOT NULL,varchar,NOT NULL,match,match,match
+database_connection,password,varchar,NOT NULL,varchar,NOT NULL,text,NOT NULL,varchar,NOT NULL,match,type,match
+database_connection,db_schema,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NOT NULL,varchar,NOT NULL,match,match,match
+database_connection,additional_params,jsonb,NULL,jsonb,NULL,text,NULL,varchar,NULL,match,type,type
+database_connection,user_id,uuid,NOT NULL,uuid,NOT NULL,-,-,uuid,NULL,match,missing,null
+database_connection,created_at,timestamp,NOT NULL,timestamp,NOT NULL,-,-,timestamp,NOT NULL,match,missing,match
+database_connection,updated_at,timestamp,NULL,timestamp,NULL,-,-,timestamp,NULL,match,missing,match
+database_connection,deactivated_at,timestamp,NULL,timestamp,NULL,-,-,timestamp,NULL,match,missing,match
+database_connection,enabled,bool,NOT NULL,boolean,NOT NULL,-,-,boolean,NOT NULL,match,missing,match
+database_connection,ssl,-,-,-,-,-,-,boolean,NOT NULL,absent,absent,extra
+file_connection,connection_id,varchar,NOT NULL,varchar,NOT NULL,bigserial,NOT NULL,varchar,NOT NULL,match,type,match
+file_connection,connection_name,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NOT NULL,varchar,NOT NULL,match,match,match
+file_connection,storage_type,enum,NOT NULL,file_storage_type_enum,NOT NULL,varchar(100),NOT NULL,file_storage_type_enum,NOT NULL,match,type,match
+file_connection,bucket_or_container_name,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NOT NULL,varchar,NOT NULL,match,match,match
+file_connection,region,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NOT NULL,varchar,NOT NULL,match,match,match
+file_connection,access_key_id,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NOT NULL,varchar,NOT NULL,match,match,match
+file_connection,secret_access_key,varchar,NOT NULL,varchar,NOT NULL,text,NOT NULL,varchar,NOT NULL,match,type,match
+file_connection,additional_params,jsonb,NULL,jsonb,NULL,text,NULL,varchar,NULL,match,type,type
+file_connection,user_id,uuid,NOT NULL,uuid,NOT NULL,-,-,uuid,NULL,match,missing,null
+file_connection,created_at,timestamp,NOT NULL,timestamp,NOT NULL,-,-,timestamp,NOT NULL,match,missing,match
+file_connection,updated_at,timestamp,NULL,timestamp,NULL,-,-,timestamp,NULL,match,missing,match
+file_connection,deactivated_at,timestamp,NULL,timestamp,NULL,-,-,timestamp,NULL,match,missing,match
+file_connection,enabled,bool,NOT NULL,boolean,NOT NULL,-,-,boolean,NOT NULL,match,missing,match
+file_connection,endpoint_url,-,-,-,-,text,NULL,-,-,absent,extra,absent
+db_based_checks_config,config_id,varchar,NOT NULL,varchar,NOT NULL,varchar,NOT NULL,varchar,NOT NULL,match,match,match
+db_based_checks_config,config_name,varchar,NOT NULL,varchar,NOT NULL,varchar,NOT NULL,varchar,NOT NULL,match,match,match
+db_based_checks_config,check_category,int,NOT NULL,integer,NOT NULL,varchar,NOT NULL,integer,NOT NULL,match,type,match
+db_based_checks_config,workstream,int,NOT NULL,integer,NOT NULL,varchar,NOT NULL,integer,NOT NULL,match,type,match
+db_based_checks_config,impacted_downstream,array_int,NOT NULL,integer[],NOT NULL,integer[],NOT NULL,int4[],NOT NULL,match,match,match
+db_based_checks_config,data_source,int,NOT NULL,integer,NOT NULL,varchar,NOT NULL,integer,NOT NULL,match,type,match
+db_based_checks_config,source_connection_id,varchar,NOT NULL,varchar,NOT NULL,varchar,NOT NULL,varchar,NOT NULL,match,match,match
+db_based_checks_config,source_table_name,varchar,NOT NULL,varchar,NOT NULL,varchar,NOT NULL,varchar,NOT NULL,match,match,match
+db_based_checks_config,target_connection_id,varchar,NOT NULL,varchar,NOT NULL,varchar,NOT NULL,varchar,NOT NULL,match,match,match
+db_based_checks_config,target_table_prefix,varchar,NOT NULL,varchar,NOT NULL,varchar,NOT NULL,varchar,NOT NULL,match,match,match
+db_based_checks_config,landing_table,boolean,NOT NULL,boolean,NOT NULL,boolean,NOT NULL,boolean,NOT NULL,match,match,match
+db_based_checks_config,landing_table_name,varchar,NULL,varchar,NULL,varchar,NULL,varchar,NULL,match,match,match
+db_based_checks_config,user_id,uuid,NOT NULL,uuid,NOT NULL,-,-,uuid,NOT NULL,match,missing,match
+db_based_checks_config,created_at,timestamp,NOT NULL,timestamp,NOT NULL,-,-,timestamp,NULL,match,missing,null
+db_based_checks_config,updated_at,timestamp,NULL,timestamp,NULL,-,-,timestamp,NULL,match,missing,match
+db_based_checks_config,deactivated_at,timestamp,NULL,timestamp,NULL,-,-,timestamp,NULL,match,missing,match
+db_based_checks_config,enabled,bool,NOT NULL,boolean,NOT NULL,-,-,boolean,NOT NULL,match,missing,match
+db_based_checks_config,schema_table_name,-,-,-,-,-,-,varchar,NOT NULL,absent,absent,extra
+file_based_checks_config,config_id,varchar,NOT NULL,varchar,NOT NULL,varchar(10),NOT NULL,varchar,NOT NULL,match,match,match
+file_based_checks_config,config_name,varchar,NOT NULL,varchar,NOT NULL,varchar(200),NOT NULL,varchar,NOT NULL,match,match,match
+file_based_checks_config,check_category,int,NOT NULL,integer,NOT NULL,varchar(200),NOT NULL,integer,NOT NULL,match,type,match
+file_based_checks_config,workstream,int,NOT NULL,integer,NOT NULL,varchar(200),NOT NULL,integer,NOT NULL,match,type,match
+file_based_checks_config,impacted_downstream,array_int,NOT NULL,integer[],NOT NULL,integer[],NOT NULL,int4[],NOT NULL,match,match,match
+file_based_checks_config,data_source,int,NOT NULL,integer,NOT NULL,varchar(200),NOT NULL,integer,NOT NULL,match,type,match
+file_based_checks_config,source_connection_id,varchar,NOT NULL,varchar,NOT NULL,varchar(100),NOT NULL,varchar,NOT NULL,match,match,match
+file_based_checks_config,source_file_type,enum,NOT NULL,source_file_type,NOT NULL,varchar(200),NOT NULL,source_file_type,NOT NULL,match,type,match
+file_based_checks_config,source_file_delimiter,enum,NULL,source_file_delimiter,NULL,varchar,NULL,source_file_delimiter,NULL,match,type,match
+file_based_checks_config,source_file_path,varchar,NULL,varchar,NULL,varchar,NULL,varchar,NULL,match,match,match
+file_based_checks_config,source_file_name,varchar,NOT NULL,varchar,NOT NULL,varchar(200),NOT NULL,varchar,NOT NULL,match,match,match
+file_based_checks_config,target_connection_id,varchar,NOT NULL,varchar,NOT NULL,varchar(100),NOT NULL,varchar,NOT NULL,match,match,match
+file_based_checks_config,target_table_prefix,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NOT NULL,varchar,NOT NULL,match,match,match
+file_based_checks_config,landing_table,boolean,NOT NULL,boolean,NOT NULL,boolean,NOT NULL,boolean,NOT NULL,match,match,match
+file_based_checks_config,landing_table_name,varchar,NULL,varchar,NULL,varchar(255),NULL,varchar,NULL,match,match,match
+file_based_checks_config,user_id,uuid,NOT NULL,uuid,NOT NULL,-,-,uuid,NOT NULL,match,missing,match
+file_based_checks_config,created_at,timestamp,NOT NULL,timestamp,NOT NULL,-,-,timestamp,NULL,match,missing,null
+file_based_checks_config,updated_at,timestamp,NULL,timestamp,NULL,-,-,timestamp,NULL,match,missing,match
+file_based_checks_config,deactivated_at,timestamp,NULL,timestamp,NULL,-,-,timestamp,NULL,match,missing,match
+file_based_checks_config,enabled,bool,NOT NULL,boolean,NOT NULL,-,-,boolean,NOT NULL,match,missing,match
+file_based_checks_config,schema_file_name,-,-,-,-,-,-,varchar,NOT NULL,absent,absent,extra
+custom_business_checks_config,check_id,varchar,NOT NULL,varchar,NOT NULL,bigserial,NOT NULL,varchar,NOT NULL,match,type,match
+custom_business_checks_config,check_name,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NOT NULL,varchar,NOT NULL,match,match,match
+custom_business_checks_config,check_description,text,NULL,text,NULL,text,NULL,text,NULL,match,match,match
+custom_business_checks_config,check_category,int,NOT NULL,integer,NOT NULL,varchar(255),NOT NULL,integer,NOT NULL,match,type,match
+custom_business_checks_config,workstream,int,NOT NULL,integer,NOT NULL,varchar(255),NOT NULL,integer,NOT NULL,match,type,match
+custom_business_checks_config,impacted_downstream,array_int,NOT NULL,integer[],NOT NULL,varchar(255),NOT NULL,int4[],NOT NULL,match,type,match
+custom_business_checks_config,data_source,int,NOT NULL,integer,NOT NULL,varchar(255),NOT NULL,integer,NOT NULL,match,type,match
+custom_business_checks_config,source_connection_id,varchar,NOT NULL,varchar,NOT NULL,bigint,NULL,varchar,NOT NULL,match,type,match
+custom_business_checks_config,target_connection_id,varchar,NOT NULL,varchar,NOT NULL,bigint,NULL,varchar,NOT NULL,match,type,match
+custom_business_checks_config,target_table_prefix,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NULL,varchar,NOT NULL,match,null,match
+custom_business_checks_config,sql_query,text,NOT NULL,text,NOT NULL,text,NOT NULL,text,NOT NULL,match,match,match
+custom_business_checks_config,criticality,enum,NOT NULL,check_criticality,NOT NULL,varchar(100),NULL,check_criticality,NOT NULL,match,type,match
+custom_business_checks_config,error_message,varchar,NOT NULL,varchar,NOT NULL,text,NULL,varchar,NULL,match,type,null
+custom_business_checks_config,user_id,uuid,NOT NULL,uuid,NOT NULL,-,-,uuid,NOT NULL,match,missing,match
+custom_business_checks_config,created_at,timestamp,NOT NULL,timestamp,NOT NULL,-,-,timestamp,NOT NULL,match,missing,match
+custom_business_checks_config,updated_at,timestamp,NULL,timestamp,NULL,-,-,timestamp,NULL,match,missing,match
+custom_business_checks_config,deactivated_at,timestamp,NULL,timestamp,NULL,-,-,timestamp,NULL,match,missing,match
+custom_business_checks_config,enabled,bool,NOT NULL,boolean,NOT NULL,-,-,boolean,NOT NULL,match,missing,match
+custom_business_checks_config,connection_id,-,-,-,-,-,-,varchar(50),NULL,absent,absent,extra
+custom_business_checks_config,source_or_process,-,-,-,-,-,-,varchar(50),NULL,absent,absent,extra
+custom_business_checks_config,table_name,-,-,-,-,-,-,varchar(100),NULL,absent,absent,extra
+traditional_config_details,tc_req_id,int,NOT NULL,serial,NOT NULL,integer,NOT NULL,integer,NOT NULL,match,match,match
+traditional_config_details,config_id,varchar,NOT NULL,varchar,NOT NULL,varchar(10),NOT NULL,varchar,NOT NULL,match,match,match
+traditional_config_details,field,varchar,NOT NULL,varchar,NOT NULL,varchar(200),NOT NULL,varchar,NOT NULL,match,match,match
+traditional_config_details,column_order,int,NOT NULL,integer,NOT NULL,integer,NOT NULL,integer,NOT NULL,match,match,match
+traditional_config_details,column_datatype,enum,NOT NULL,tcd_data_type,NOT NULL,varchar(255),NOT NULL,tcd_data_type,NOT NULL,match,type,match
+traditional_config_details,primary_key_check,boolean,NOT NULL,boolean,NOT NULL,boolean,NOT NULL,boolean,NOT NULL,match,match,match
+traditional_config_details,primary_key_check_criticality,enum,NULL,check_criticality,NULL,varchar,NULL,check_criticality,NULL,match,type,match
+traditional_config_details,null_check,boolean,NOT NULL,boolean,NOT NULL,boolean,NOT NULL,boolean,NOT NULL,match,match,match
+traditional_config_details,null_check_criticality,enum,NULL,check_criticality,NULL,varchar(20),NULL,check_criticality,NULL,match,type,match
+traditional_config_details,duplicate_check,boolean,NOT NULL,boolean,NOT NULL,boolean,NOT NULL,boolean,NOT NULL,match,match,match
+traditional_config_details,duplicate_check_criticality,enum,NULL,check_criticality,NULL,varchar(20),NULL,check_criticality,NULL,match,type,match
+traditional_config_details,length_check,boolean,NOT NULL,boolean,NOT NULL,boolean,NOT NULL,boolean,NOT NULL,match,match,match
+traditional_config_details,expected_length,integer,NULL,integer,NULL,integer,NULL,integer,NULL,match,match,match
+traditional_config_details,length_check_criticality,enum,NULL,check_criticality,NULL,varchar(20),NULL,check_criticality,NULL,match,type,match
+traditional_config_details,format_check,boolean,NOT NULL,boolean,NOT NULL,boolean,NOT NULL,boolean,NOT NULL,match,match,match
+traditional_config_details,format_regex,varchar,NULL,varchar,NULL,varchar(500),NULL,varchar,NULL,match,match,match
+traditional_config_details,format_check_criticality,enum,NULL,check_criticality,NULL,varchar(20),NULL,check_criticality,NULL,match,type,match
+traditional_config_details,lov_check,boolean,NOT NULL,boolean,NOT NULL,boolean,NOT NULL,boolean,NOT NULL,match,match,match
+traditional_config_details,lovs,text,NULL,text,NULL,text,NULL,text,NULL,match,match,match
+traditional_config_details,lov_check_criticality,enum,NULL,check_criticality,NULL,varchar(20),NULL,check_criticality,NULL,match,type,match
+traditional_config_details,ri_check,boolean,NOT NULL,boolean,NOT NULL,boolean,NOT NULL,boolean,NOT NULL,match,match,match
+traditional_config_details,ri_connection_id,varchar,NULL,varchar,NULL,varchar,NULL,varchar,NULL,match,match,match
+traditional_config_details,ri_reference_table,varchar,NULL,varchar,NULL,varchar(200),NULL,varchar,NULL,match,match,match
+traditional_config_details,ri_field_name,varchar,NULL,varchar,NULL,varchar(200),NULL,varchar,NULL,match,match,match
+traditional_config_details,ri_check_criticality,enum,NULL,check_criticality,NULL,varchar,NULL,check_criticality,NULL,match,type,match
+traditional_config_details,enabled,-,-,boolean,NOT NULL,-,-,boolean,NOT NULL,extra,absent,extra
+traditional_config_details,user_id,-,-,uuid,NOT NULL,-,-,uuid,NOT NULL,extra,absent,extra
+traditional_config_details,created_at,-,-,timestamp,NOT NULL,-,-,timestamp,NULL,extra,absent,extra
+traditional_config_details,updated_at,-,-,timestamp,NULL,-,-,timestamp,NULL,extra,absent,extra
+traditional_config_details,deactivated_at,-,-,timestamp,NULL,-,-,-,-,extra,absent,absent
+qc_tags,id,int,NOT NULL,serial,NOT NULL,-,-,integer,NOT NULL,match,missing,match
+qc_tags,type,enum,NOT NULL,-,-,-,-,-,-,missing,missing,missing
+qc_tags,title,varchar,NOT NULL,-,-,-,-,-,-,missing,missing,missing
+qc_tags,description,text,NULL,text,NULL,-,-,text,NULL,match,missing,match
+qc_tags,created_at,timestamp,NOT NULL,timestamp,NOT NULL,-,-,timestamp,NULL,match,missing,null
+qc_tags,updated_at,timestamp,NULL,timestamp,NULL,-,-,timestamp,NULL,match,missing,match
+qc_tags,deactivated_at,timestamp,NULL,timestamp,NULL,-,-,timestamp,NULL,match,missing,match
+qc_tags,enabled,boolean,NOT NULL,boolean,NOT NULL,-,-,boolean,NULL,match,missing,null
+qc_tags,tag_type,-,-,qc_tag_type,NOT NULL,-,-,qc_tag_type,NOT NULL,extra,absent,extra
+qc_tags,tag_title,-,-,varchar,NOT NULL,-,-,varchar,NOT NULL,extra,absent,extra
+qc_tags,user_id,-,-,uuid,NOT NULL,-,-,uuid,NULL,extra,absent,extra
+results,check_execution_id,int,NOT NULL,serial,NOT NULL,bigserial,NOT NULL,integer,NOT NULL,match,match,match
+results,job_id,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NOT NULL,varchar,NOT NULL,match,match,match
+results,job_timestamp,datetime,NOT NULL,timestamp,NOT NULL,timestamp,NOT NULL,timestamp,NOT NULL,match,match,match
+results,user_id,uuid,NOT NULL,uuid,NOT NULL,-,-,-,-,match,missing,missing
+results,check_id,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NOT NULL,varchar,NOT NULL,match,match,match
+results,check_name,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NOT NULL,varchar,NOT NULL,match,match,match
+results,check_description,varchar,NULL,varchar,NULL,text,NULL,varchar,NULL,match,type,match
+results,config_id,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NOT NULL,varchar,NOT NULL,match,match,match
+results,config_name,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NOT NULL,varchar,NOT NULL,match,match,match
+results,check_category,int,NOT NULL,integer,NOT NULL,varchar(255),NOT NULL,integer,NOT NULL,match,type,match
+results,workstream,int,NOT NULL,integer,NOT NULL,varchar(255),NOT NULL,integer,NOT NULL,match,type,match
+results,impacted_downstream,array_int,NOT NULL,integer[],NOT NULL,varchar(255),NULL,int4[],NOT NULL,match,type,match
+results,data_source,int,NOT NULL,integer,NOT NULL,varchar(255),NOT NULL,integer,NOT NULL,match,type,match
+results,file_or_table_name,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NOT NULL,varchar,NOT NULL,match,match,match
+results,check_type,enum,NOT NULL,check_type,NOT NULL,varchar(255),NOT NULL,check_type,NOT NULL,match,type,match
+results,field,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NULL,varchar,NOT NULL,match,null,match
+results,abort,boolean,NOT NULL,boolean,NOT NULL,boolean,NULL,boolean,NOT NULL,match,null,match
+results,check_status,enum,NOT NULL,check_status,NOT NULL,varchar(100),NULL,check_status,NULL,match,type,null
+results,criticality,enum,NULL,results_criticality,NULL,varchar(100),NULL,results_criticality,NOT NULL,match,type,null
+results,issue_rows,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NULL,varchar,NOT NULL,match,null,match
+results,passed_rows,varchar,NOT NULL,varchar,NOT NULL,varchar(255),NULL,varchar,NOT NULL,match,null,match
+results,failure_reason,varchar,NULL,varchar,NULL,text,NULL,varchar,NULL,match,type,match
+results,issue_status,enum,NULL,issue_status,NULL,varchar(100),NULL,issue_status,NULL,match,type,match
+results,created_at,-,-,timestamp,NOT NULL,-,-,timestamp,NULL,extra,absent,extra
+results,updated_at,-,-,timestamp,NULL,-,-,timestamp,NULL,extra,absent,extra
+users,id,-,-,uuid,NOT NULL,-,-,uuid,NOT NULL,extra,absent,extra
+users,email,-,-,varchar(255),NOT NULL,-,-,varchar(255),NOT NULL,extra,absent,extra
+users,full_name,-,-,varchar(255),NOT NULL,-,-,varchar(255),NOT NULL,extra,absent,extra
+users,role,-,-,user_role,NOT NULL,-,-,user_role,NOT NULL,extra,absent,extra
+users,refresh_token,-,-,text,NULL,-,-,text,NULL,extra,absent,extra
+users,enabled,-,-,boolean,NOT NULL,-,-,boolean,NULL,extra,absent,extra
+users,created_by,-,-,uuid,NULL,-,-,uuid,NULL,extra,absent,extra
+users,last_login_at,-,-,timestamp,NULL,-,-,timestamp,NULL,extra,absent,extra
+users,created_at,-,-,timestamp,NOT NULL,-,-,timestamp,NULL,extra,absent,extra
+users,updated_at,-,-,timestamp,NULL,-,-,timestamp,NULL,extra,absent,extra
+users,deactivated_at,-,-,timestamp,NULL,-,-,timestamp,NULL,extra,absent,extra
+id_sequences,id,-,-,uuid,NOT NULL,-,-,uuid,NOT NULL,extra,absent,extra
+id_sequences,table_name,-,-,varchar(250),NOT NULL,-,-,varchar(250),NOT NULL,extra,absent,extra
+id_sequences,prefix,-,-,varchar(10),NOT NULL,-,-,varchar(10),NOT NULL,extra,absent,extra
+id_sequences,value,-,-,integer,NOT NULL,-,-,integer,NOT NULL,extra,absent,extra
+id_sequences,created_at,-,-,timestamp,NOT NULL,-,-,timestamp,NOT NULL,extra,absent,extra
+id_sequences,updated_at,-,-,timestamp,NOT NULL,-,-,timestamp,NOT NULL,extra,absent,extra
+testing_mock_records,mock_record_id,-,-,integer,NOT NULL,-,-,integer,NOT NULL,extra,absent,extra
+testing_mock_records,record_code,-,-,varchar(32),NOT NULL,-,-,varchar(32),NOT NULL,extra,absent,extra
+testing_mock_records,customer_code,-,-,varchar(32),NOT NULL,-,-,varchar(32),NOT NULL,extra,absent,extra
+testing_mock_records,full_name,-,-,varchar(120),NOT NULL,-,-,varchar(120),NOT NULL,extra,absent,extra
+testing_mock_records,email,-,-,varchar(160),NOT NULL,-,-,varchar(160),NOT NULL,extra,absent,extra
+testing_mock_records,status,-,-,testing_mock_status,NOT NULL,-,-,testing_mock_status,NOT NULL,extra,absent,extra
+testing_mock_records,region,-,-,varchar(40),NOT NULL,-,-,varchar(40),NOT NULL,extra,absent,extra
+testing_mock_records,category,-,-,varchar(40),NOT NULL,-,-,varchar(40),NOT NULL,extra,absent,extra
+testing_mock_records,amount,-,-,"numeric(12,2)",NOT NULL,-,-,"numeric(12,2)",NOT NULL,extra,absent,extra
+testing_mock_records,score,-,-,integer,NOT NULL,-,-,integer,NOT NULL,extra,absent,extra
+testing_mock_records,event_date,-,-,date,NOT NULL,-,-,date,NOT NULL,extra,absent,extra
+testing_mock_records,enabled,-,-,boolean,NOT NULL,-,-,boolean,NOT NULL,extra,absent,extra
+testing_mock_records,created_at,-,-,timestamptz,NOT NULL,-,-,timestamptz,NOT NULL,extra,absent,extra
+testing_mock_records,updated_at,-,-,timestamptz,NOT NULL,-,-,timestamptz,NOT NULL,extra,absent,extra
+traditional_checks_library_rev,check_id,-,-,-,-,varchar,NOT NULL,varchar(10),NOT NULL,absent,extra,extra
+traditional_checks_library_rev,check_mapping_name,-,-,-,-,varchar,NOT NULL,varchar(255),NOT NULL,absent,extra,extra
+traditional_checks_library_rev,check_name,-,-,-,-,varchar,NOT NULL,varchar(255),NOT NULL,absent,extra,extra
+traditional_checks_library_rev,check_description,-,-,-,-,text,NULL,text,NULL,absent,extra,extra
+traditional_checks_library_rev,check_category,-,-,-,-,varchar,NOT NULL,-,-,absent,extra,absent
+traditional_checks_library_rev,workstream,-,-,-,-,varchar,NOT NULL,-,-,absent,extra,absent
+traditional_checks_library_rev,check_function,-,-,-,-,varchar,NOT NULL,-,-,absent,extra,absent
+traditional_checks_library_rev,abort,-,-,-,-,boolean,NOT NULL,boolean,NOT NULL,absent,extra,extra
+ml_checks_library,check_id,-,-,-,-,bigserial,NOT NULL,-,-,absent,extra,absent
+ml_checks_library,check_name,-,-,-,-,varchar(255),NOT NULL,-,-,absent,extra,absent
+ml_checks_library,check_description,-,-,-,-,text,NULL,-,-,absent,extra,absent
+ml_checks_library,check_category,-,-,-,-,varchar(255),NOT NULL,-,-,absent,extra,absent
+ml_checks_library,workstream,-,-,-,-,varchar(255),NOT NULL,-,-,absent,extra,absent
+ml_checks_library,check_function,-,-,-,-,varchar(255),NOT NULL,-,-,absent,extra,absent
+ml_checks_library,abort,-,-,-,-,boolean,NOT NULL,-,-,absent,extra,absent
+category_label_library,category_id,-,-,-,-,bigserial,NOT NULL,integer,NOT NULL,absent,extra,extra
+category_label_library,category_name,-,-,-,-,varchar(255),NOT NULL,varchar(255),NOT NULL,absent,extra,extra
+category_label_library,category_created_at,-,-,-,-,timestamp,NOT NULL,timestamptz,NULL,absent,extra,extra
+category_label_library,category_description,-,-,-,-,text,NULL,text,NULL,absent,extra,extra
+workstream_library,workstream_id,-,-,-,-,bigserial,NOT NULL,integer,NOT NULL,absent,extra,extra
+workstream_library,workstream_name,-,-,-,-,varchar(255),NOT NULL,varchar(255),NOT NULL,absent,extra,extra
+workstream_library,workstream_created_at,-,-,-,-,timestamp,NOT NULL,timestamptz,NULL,absent,extra,extra
+workstream_library,workstream_description,-,-,-,-,text,NULL,text,NULL,absent,extra,extra
+impacted_downstream_library,impacted_downstream_id,-,-,-,-,bigserial,NOT NULL,integer,NOT NULL,absent,extra,extra
+impacted_downstream_library,impacted_downstream_name,-,-,-,-,varchar(255),NOT NULL,varchar(255),NOT NULL,absent,extra,extra
+impacted_downstream_library,impacted_downstream_created_at,-,-,-,-,timestamp,NOT NULL,timestamptz,NOT NULL,absent,extra,extra
+impacted_downstream_library,impacted_downstream_description,-,-,-,-,text,NULL,text,NULL,absent,extra,extra
+data_source_library,data_source_id,-,-,-,-,bigserial,NOT NULL,integer,NOT NULL,absent,extra,extra
+data_source_library,data_source_name,-,-,-,-,varchar(255),NOT NULL,varchar(255),NOT NULL,absent,extra,extra
+data_source_library,data_source_created_at,-,-,-,-,timestamp,NOT NULL,timestamptz,NULL,absent,extra,extra
+data_source_library,data_source_description,-,-,-,-,text,NULL,text,NULL,absent,extra,extra
+dc_result.results,check_execution_id,-,-,-,-,-,-,bigint,NOT NULL,absent,absent,extra
+dc_result.results,job_id,-,-,-,-,-,-,varchar(255),NOT NULL,absent,absent,extra
+dc_result.results,job_timestamp,-,-,-,-,-,-,timestamp,NOT NULL,absent,absent,extra
+dc_result.results,check_id,-,-,-,-,-,-,varchar(255),NOT NULL,absent,absent,extra
+dc_result.results,check_name,-,-,-,-,-,-,varchar(255),NOT NULL,absent,absent,extra
+dc_result.results,check_description,-,-,-,-,-,-,text,NULL,absent,absent,extra
+dc_result.results,config_id,-,-,-,-,-,-,varchar(255),NOT NULL,absent,absent,extra
+dc_result.results,config_name,-,-,-,-,-,-,varchar(255),NOT NULL,absent,absent,extra
+dc_result.results,check_category,-,-,-,-,-,-,varchar(255),NOT NULL,absent,absent,extra
+dc_result.results,workstream,-,-,-,-,-,-,varchar(255),NOT NULL,absent,absent,extra
+dc_result.results,impacted_downstream,-,-,-,-,-,-,varchar(255),NULL,absent,absent,extra
+dc_result.results,data_source,-,-,-,-,-,-,varchar(255),NOT NULL,absent,absent,extra
+dc_result.results,file_or_table_name,-,-,-,-,-,-,varchar(255),NOT NULL,absent,absent,extra
+dc_result.results,check_type,-,-,-,-,-,-,varchar(255),NOT NULL,absent,absent,extra
+dc_result.results,field,-,-,-,-,-,-,varchar(255),NULL,absent,absent,extra
+dc_result.results,abort,-,-,-,-,-,-,boolean,NULL,absent,absent,extra
+dc_result.results,check_status,-,-,-,-,-,-,varchar(100),NULL,absent,absent,extra
+dc_result.results,criticality,-,-,-,-,-,-,varchar(100),NULL,absent,absent,extra
+dc_result.results,issue_rows,-,-,-,-,-,-,varchar(255),NULL,absent,absent,extra
+dc_result.results,passed_rows,-,-,-,-,-,-,varchar(255),NULL,absent,absent,extra
+dc_result.results,failure_reason,-,-,-,-,-,-,text,NULL,absent,absent,extra
+dc_result.results,issue_status,-,-,-,-,-,-,varchar(100),NULL,absent,absent,extra
+system_logs,id,-,-,-,-,-,-,varchar,NOT NULL,absent,absent,extra
+system_logs,job_id,-,-,-,-,-,-,varchar,NOT NULL,absent,absent,extra
+system_logs,user_id,-,-,-,-,-,-,varchar,NULL,absent,absent,extra
+system_logs,timestamp,-,-,-,-,-,-,timestamp,NOT NULL,absent,absent,extra
+system_logs,code,-,-,-,-,-,-,varchar,NOT NULL,absent,absent,extra
+system_logs,severity,-,-,-,-,-,-,varchar,NOT NULL,absent,absent,extra
+system_logs,message,-,-,-,-,-,-,text,NOT NULL,absent,absent,extra
+system_logs,context_json,-,-,-,-,-,-,text,NULL,absent,absent,extra
+system_logs,flushed_at,-,-,-,-,-,-,timestamp,NULL,absent,absent,extra
+validation_logs,id,-,-,-,-,-,-,varchar,NOT NULL,absent,absent,extra
+validation_logs,job_id,-,-,-,-,-,-,varchar,NOT NULL,absent,absent,extra
+validation_logs,user_id,-,-,-,-,-,-,varchar,NULL,absent,absent,extra
+validation_logs,timestamp,-,-,-,-,-,-,timestamp,NOT NULL,absent,absent,extra
+validation_logs,message,-,-,-,-,-,-,text,NOT NULL,absent,absent,extra
+validation_logs,context_json,-,-,-,-,-,-,text,NULL,absent,absent,extra
+validation_logs,flushed_at,-,-,-,-,-,-,timestamp,NULL,absent,absent,extra

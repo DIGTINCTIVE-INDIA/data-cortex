@@ -1,0 +1,38 @@
+# Service layer only -- kept separate from requirements.txt (the engine's own
+# deps) so the two can be installed and reasoned about independently.
+fastapi
+uvicorn[standard]
+celery[redis]
+redis
+
+# Was previously inherited for free from the apache/airflow base image via its
+# bundled snowflake provider. dc-engine no longer builds on that image, and
+# trad_ct_id/cursor_factory.py imports snowflake.connector at MODULE level --
+# so without this, importing dc_engine fails outright.
+snowflake-connector-python
+
+# Pinned, and this one is load-bearing. requirements.txt lists sqlalchemy
+# unpinned; on python:3.11 that resolved to 2.1.3, but the engine was written
+# and verified against the 1.4.51 that the old apache/airflow base image shipped.
+#
+# The immediate breakage: database.py:451 builds "postgresql://..." with no
+# driver suffix, and SQLAlchemy 2.1 changed that URL's default driver from
+# psycopg2 to psycopg (v3) -- which isn't installed, so every run died with
+# "No module named 'psycopg'". Pinning avoids a code change to that URL, and
+# also avoids the much larger 1.4 -> 2.0 ORM migration this would otherwise
+# drag in. Revisit deliberately, not by accident.
+sqlalchemy==1.4.51
+
+# Same class of bug as the sqlalchemy pin above, one library along.
+# requirements.txt leaves pandas unpinned; on python:3.11 that resolved to
+# 3.0.6, but pandas 3.x no longer recognises a SQLAlchemy *1.4* Engine as a
+# connectable. It falls through to the raw-DBAPI2 path and calls .cursor() on
+# it, which an Engine does not have -- so temp_connectors.fetch_table() throws,
+# swallows the error, and returns an EMPTY DataFrame. Every run then dies with
+# "No checks to execute", blaming the config for what is really a driver
+# mismatch. 2.0.3 is what the old apache/airflow base image shipped and what
+# this code was written against.
+pandas==2.0.3
+# pandas 2.0.3 predates the numpy 2.0 ABI break; an unpinned numpy resolves to
+# 2.x and fails at import with a binary-incompatibility error.
+numpy<2

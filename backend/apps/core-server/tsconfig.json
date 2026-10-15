@@ -1,0 +1,9 @@
+{
+	"extends": "typescript-config/tsconfig.node.json",
+	"compilerOptions": {
+		"paths": {
+			"@/*": ["./src/*"]
+		}
+	},
+	"include": ["src/**/*.ts"]
+}

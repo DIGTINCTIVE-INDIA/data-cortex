@@ -1,0 +1,38 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+.env
+keys/
+*.p8
+*.pem
+*.key
+.encryption_key
+Data_Code/logs/
+
+config.json
+results/
+EXECUTION_DF_EXAMPLE_UPDATED.csv
+
+# Contains real, hardcoded AWS credentials -- never push
+artifacts/s3_viewer.py
+
+# Testing folders and everything in them -- Claude's own scratch/tracking
+# space, never pushed
+Testing_Datasets/
+# test_cases/ stays out as a whole -- older files in it carry real credentials. Only the tests
+# the sync gate runs are let back in, one by one.
+test_cases/*
+!test_cases/pytest.ini
+!test_cases/test_datatype_scan.py
+!test_cases/test_custom_check_config_validation.py
+!test_cases/test_failure_text.py
+!test_cases/test_ri_check.py
+!test_cases/test_file_delimiter.py
+tests/
+
+# Historical changelog, kept local not pushed
+docs/CHANGES_SUMMARY.md

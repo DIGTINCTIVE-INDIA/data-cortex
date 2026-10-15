@@ -1,0 +1,5 @@
+[
+    {"user_id": "13473e73-a170-4936-932e-2ecdde40b974"},
+    {"check_type": "custom_check", "check_id": "CB001"},
+    {"check_type": "custom_check", "check_id": ["CB002", "CB003"], "connection_id": "<optional_connection_id>"}
+]

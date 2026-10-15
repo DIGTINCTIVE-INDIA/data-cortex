@@ -1,0 +1,77 @@
+# dc-engine: HTTP intake + warm Celery workers.
+#
+# Two tiers on purpose. The API never imports the engine (~42MB, scales with
+# request rate); the workers preload it before forking (~160MB parent, ~85MB
+# per child via copy-on-write, scales with concurrent RUNS). See service/api.py.
+#
+# Build note: BuildKit cannot walk this tree while it lives under OneDrive
+# ("invalid file request"). Build with:  DOCKER_BUILDKIT=0 docker compose build
+
+x-engine-common: &engine-common
+  image: dc-engine:local
+  build: .
+  env_file: .env
+  environment: &engine-env
+    PYTHONPATH: /app
+    CELERY_BROKER_URL: redis://redis:6379/0
+    CELERY_RESULT_BACKEND: redis://redis:6379/1
+  volumes:
+    # Bind-mounted so a code change needs a restart, not a rebuild -- matters
+    # when you are iterating on concurrency settings.
+    - ./:/app
+  depends_on:
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+
+services:
+  redis:
+    image: redis:7-alpine
+    # Deliberately NOT published. An open broker lets anyone enqueue arbitrary
+    # tasks, which here means arbitrary SQL against your databases.
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    <<: *engine-common
+    # --no-access-log: the compose healthcheck alone produced ~14% of all log
+    # lines, which buries the task-timing lines you actually read during a load
+    # test. Container state still reflects health; only the per-request line goes.
+    command: uvicorn service.api:api --host 0.0.0.0 --port 8000 --no-access-log
+    ports:
+      # Bound to localhost only: the backend is the sole legitimate caller, and
+      # this endpoint runs SQL against your DBs with no authn of its own.
+      # Change to "8000:8000" only if the backend is on another host.
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8000/health"]
+      interval: 60s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  worker:
+    <<: *engine-common
+    # -Ofair + prefetch=1 (set in celery_app.py): check runs vary wildly in
+    # duration, and the default would let one worker hoard queued runs behind a
+    # slow one while others idle.
+    command: >
+      celery -A service.tasks worker
+      --pool=prefork
+      --concurrency=${CELERY_CONCURRENCY:-4}
+      -Ofair
+      --without-gossip
+      --without-mingle
+      --loglevel=INFO
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A service.tasks inspect ping -d celery@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

@@ -1,0 +1,9 @@
+{
+	"extends": "typescript-config/tsconfig.node.json",
+	"compilerOptions": {
+		"baseUrl": "./src",
+		"allowImportingTsExtensions": true
+	},
+
+	"include": ["src/**/*.ts"]
+}

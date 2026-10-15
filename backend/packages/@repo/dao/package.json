@@ -1,0 +1,44 @@
+{
+	"name": "@repo/dao",
+	"type": "module",
+	"scripts": {
+		"lint": "eslint .",
+		"lint:fix": "eslint . src/**/*.ts --fix",
+		"clean": "rimraf dist .turbo dist",
+		"deep:clean": "rimraf node_modules dist .turbo",
+		"typecheck": "tsc --noEmit",
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
+		"test": "vitest run"
+	},
+	"exports": "./src/index.ts",
+	"devDependencies": {
+		"@repo/db": "workspace:*",
+		"@repo/lib": "workspace:*",
+		"@repo/types": "workspace:*",
+		"@repo/redis": "workspace:*",
+		"@types/eslint": "^8.56.5",
+		"@types/express-fileupload": "catalog:",
+		"@types/jsonwebtoken": "^9.0.7",
+		"@types/node": "^20.16.5",
+		"@types/pg": "^8.20.0",
+		"eslint-config": "workspace:^",
+		"typescript-config": "workspace:^"
+	},
+	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1036.0",
+		"@azure/msal-node": "^3.8.4",
+		"@repo/env": "workspace:*",
+		"axios": "^1.7.7",
+		"csv-parser": "^3.2.0",
+		"dayjs": "^1.11.13",
+		"dayjs-plugin-utc": "^0.1.2",
+		"exceljs": "^4.4.0",
+		"express": "^4.21.1",
+		"fs.promises.exists": "^1.1.4",
+		"jsonwebtoken": "^9.0.2",
+		"mssql": "^12.1.0",
+		"pg": "^8.20.0",
+		"stream-json": "^2.1.0"
+	}
+}

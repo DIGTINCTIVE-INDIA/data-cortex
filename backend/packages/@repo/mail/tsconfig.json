@@ -1,0 +1,13 @@
+{
+	"extends": "typescript-config/tsconfig.frontend.json",
+	"compilerOptions": {
+		"rootDir": ".",
+		"types": ["node"],
+		"baseUrl": "src",
+		"jsx": "react",
+		"tsBuildInfoFile": "dist/typecheck.tsbuildinfo",
+		"experimentalDecorators": true,
+		"emitDecoratorMetadata": true
+	},
+	"include": ["src/**/*.ts", "src/**/*.tsx"]
+}

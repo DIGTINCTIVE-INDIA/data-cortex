@@ -1,0 +1,47 @@
+{
+	"name": "@repo/lib",
+	"type": "module",
+	"scripts": {
+		"lint": "eslint .",
+		"lint:fix": "eslint . src/**/*.ts --fix",
+		"clean": "rimraf dist .turbo dist",
+		"deep:clean": "rimraf node_modules dist .turbo",
+		"typecheck": "tsc --noEmit",
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
+		"test": "vitest run"
+	},
+	"exports": {
+		".": "./src/index.ts",
+		"./*": "./src/*/index.ts"
+	},
+	"dependencies": {
+		"@aws-sdk/client-s3": "catalog:",
+		"@repo/db": "workspace:*",
+		"@repo/env": "workspace:*",
+		"@repo/logger": "workspace:*",
+		"@repo/mail": "workspace:*",
+		"@repo/redis": "workspace:*",
+		"@types/express": "catalog:",
+		"@types/express-fileupload": "catalog:",
+		"bcryptjs": "catalog:",
+		"fernet": "^0.3.3",
+		"firebase-admin": "catalog:",
+		"jsonwebtoken": "catalog:",
+		"nodemailer": "catalog:",
+		"pg": "^8.20.0",
+		"snowflake-sdk": "catalog:",
+		"yaml": "^2.8.2"
+	},
+	"devDependencies": {
+		"@types/fernet": "^0.4.3",
+		"@types/jsonwebtoken": "^9.0.7",
+		"@types/nodemailer": "^6.4.16",
+		"@types/pg": "catalog:",
+		"eslint-config": "workspace:^",
+		"typescript-config": "workspace:^",
+		"vine": "link:@types/vinejs/vine",
+		"vitest-config": "workspace:^",
+		"@repo/types": "workspace:*"
+	}
+}

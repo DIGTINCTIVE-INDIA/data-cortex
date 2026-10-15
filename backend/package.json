@@ -1,0 +1,53 @@
+{
+	"name": "data-cortex-monorep",
+	"description": "",
+	"version": "1.0.0",
+	"type": "module",
+	"scripts": {
+		"dev": "turbo run dev",
+		"db:init": "pnpm --filter @repo/db db:init",
+		"dev:debug": "turbo run dev:debug",
+		"bun:dev": "turbo run bun:dev",
+		"build": "turbo run build",
+		"cli": "turbo run cli -- ",
+		"start": "turbo run start",
+		"lint": "turbo run eslint",
+		"lint:fix": "turbo run lint:fix",
+		"clean": "turbo run clean",
+		"deep:clean": "turbo run deep:clean",
+		"typecheck": "turbo run typecheck",
+		"format": "turbo run format",
+		"format:check": "turbo run format:check",
+		"test": "turbo run test",
+		"db:push": "turbo run db:push",
+		"db:studio": "turbo run db:studio"
+	},
+	"dependencies": {
+		"zod": "catalog:",
+		"@vinejs/vine": "catalog:",
+		"axios": "catalog:",
+		"date-fns": "catalog:",
+		"nanoid": "catalog:",
+		"prettier": "catalog:",
+		"eslint": "catalog:",
+		"vitest": "catalog:",
+		"tsdown": "catalog:",
+		"@types/node": "catalog:"
+	},
+	"devDependencies": {
+		"prettier": "catalog:",
+		"eslint": "catalog:",
+		"vitest": "catalog:",
+		"rimraf": "catalog:",
+		"turbo": "catalog:",
+		"typescript": "catalog:",
+		"tsdown": "catalog:",
+		"unrun": "catalog:",
+		"tsx": "catalog:",
+		"@types/node": "catalog:"
+	},
+	"packageManager": "pnpm@10.28.2",
+	"engines": {
+		"node": ">=22"
+	}
+}
