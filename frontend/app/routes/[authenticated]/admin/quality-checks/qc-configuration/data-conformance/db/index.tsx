@@ -95,7 +95,7 @@ const DatabaseCheckPage = () => {
               </div>
             </div>
 
-            <FormSection step={1} title="Basics" description="What this check is called and what it is for.">
+            <FormSection>
               <div className="grid grid-cols-1 gap-5">
               <Input
                 label="Check Name"
@@ -114,7 +114,7 @@ const DatabaseCheckPage = () => {
             />
             </FormSection>
 
-            <FormSection step={2} title="Classification" description="How this check is grouped and who is affected when it fails.">
+            <FormSection step={1} title="Classification" description="How this check is grouped and who is affected when it fails.">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <Controller
                 name="workstreamId"
@@ -197,7 +197,7 @@ const DatabaseCheckPage = () => {
               </div>
             </FormSection>
 
-            <FormSection step={3} title="Source & target" description="Where the data is read from, and where passing and failing rows are written.">
+            <FormSection step={2} title="Source & target" description="Where the data is read from, and where passing and failing rows are written.">
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <Controller

@@ -31,8 +31,11 @@ export class QcFileConfigurationUtils {
     const cleanPath = this.normalizePathPart(sourceFilePath);
     const selectedFileType = fileTypes.find(item => item.value === sourceFileType);
     const extension = selectedFileType?.extension || sourceFileType;
-    const cleanFileName = this.stripKnownFileExtension(sourceFileName);
-    const fullKey = [cleanPath, `${cleanFileName}.${extension}`].filter(Boolean).join("/");
+    // The name is the file's exact name; only one saved without an extension gets the
+    // type's, which is what the engine does too.
+    const cleanName = this.normalizePathPart(sourceFileName);
+    const fileName = /\.[A-Za-z0-9]{1,8}$/.test(cleanName) ? cleanName : `${cleanName}.${extension}`;
+    const fullKey = [cleanPath, fileName].filter(Boolean).join("/");
 
     if (region) {
       return `https://${bucket}.s3.${region}.amazonaws.com/${fullKey}`;

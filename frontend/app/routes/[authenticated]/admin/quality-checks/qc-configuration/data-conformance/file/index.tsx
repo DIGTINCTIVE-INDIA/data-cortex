@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -16,12 +17,10 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { fileAvailableOnOptions, fileTypes, useQcFIleConfProvider } from "./context/QcFIleConfProvider.js";
-import { SchemaFileDrop } from "@/components/ui/custom/SchemaFileDrop";
 import { toast } from "sonner";
 import { DownstreamPicker } from "../../components/DownstreamPicker";
 import { FlowSteps } from "../../components/FlowSteps";
 import { FormSection } from "../../components/FormSection";
-import { SchemaSourceChooser } from "../../components/SchemaSourceChooser";
 
 /**
  * Splits a pasted object key into its folder and its file.
@@ -31,17 +30,43 @@ import { SchemaSourceChooser } from "../../components/SchemaSourceChooser";
  * pickup URL twice. Returns null when the last segment does not look like a file,
  * so an ordinary folder path is left alone.
  */
-const splitPathAndFile = (raw: string) => {
-  const value = raw.trim().replace(/\\/g, "/");
+const FILE_EXTENSION = /\.([A-Za-z0-9]{1,8})$/;
+
+/**
+ * Reads whatever was typed as a file location -- a full path ("s3://bucket/a/b/x.csv",
+ * "/a/b/x.csv"), a folder ("a/b"), or just a file ("x.csv") -- into its parts. The file
+ * name keeps its extension, because that is the object's real name. A folder always ends
+ * in a slash. Either part is null when the input did not carry it.
+ */
+const parseFileLocation = (raw: string, bucket?: string) => {
+  let value = raw.trim().replace(/\\/g, "/");
+  const scheme = value.match(/^(s3|https?):\/\/([^/]+)\/?(.*)$/i);
+  if (scheme) {
+    // s3://bucket/key and https://bucket.s3.../key both carry the bucket before the key.
+    value = scheme[3];
+  }
+
   const segments = value.split("/").filter(Boolean);
+  if (segments[0] && bucket && segments[0] === bucket && (scheme || segments.length > 1)) segments.shift();
+
   const last = segments[segments.length - 1];
+  const hasFile = !!last && FILE_EXTENSION.test(last);
+  const folderSegments = hasFile ? segments.slice(0, -1) : segments;
 
-  if (!last || !last.includes(".")) return null;
+  return {
+    file: hasFile ? last : null,
+    folder: folderSegments.length ? `${folderSegments.join("/")}/` : hasFile || value === "/" ? "/" : null,
+  };
+};
 
-  const folder = segments.slice(0, -1).join("/");
-
-  // The field's own hint says no extension.
-  return { path: folder ? `/${folder}` : "/", file: last.replace(/\.[^.]+$/, "") };
+// What the extension says about the file type. Anything unknown leaves the type as chosen.
+const FILE_TYPE_BY_EXTENSION: Record<string, "csv" | "excel" | "json"> = {
+  csv: "csv",
+  tsv: "csv",
+  txt: "csv",
+  xlsx: "excel",
+  xls: "excel",
+  json: "json",
 };
 
 const FileBasedCheckPage = () => {
@@ -64,8 +89,6 @@ const FileBasedCheckPage = () => {
     categoryItems,
     dataSourceItems,
     downstreamItems,
-    isGettingSchema,
-    fetchSchemaFromSource,
     createLanding,
     fileAvailableOn,
     isAwsS3,
@@ -74,10 +97,24 @@ const FileBasedCheckPage = () => {
 
     onSubmit,
     setValue,
-    uploadedColumns,
-    uploadedFileName,
-    onSchemaFileParsed,
   } = useQcFIleConfProvider();
+
+  // Path and name accept the same things -- a full path, a folder, or just a file -- and
+  // fill in the rest: the other field, and the file type from the extension.
+  const applyLocation = (raw: string) => {
+    if (!raw.trim()) return;
+
+    const { file, folder } = parseFileLocation(raw, selectedFileConnection?.bucketOrContainerName);
+
+    if (folder !== null) setValue("sourceFilePath", folder, { shouldValidate: true });
+
+    if (file) {
+      setValue("sourceFileName", file, { shouldValidate: true });
+
+      const type = FILE_TYPE_BY_EXTENSION[file.match(FILE_EXTENSION)![1].toLowerCase()];
+      if (type) setValue("sourceFileType", type, { shouldValidate: true });
+    }
+  };
 
 
   return (
@@ -120,7 +157,7 @@ const FileBasedCheckPage = () => {
               </div>
             </div>
 
-            <FormSection step={1} title="Basics" description="What this check is called.">
+            <FormSection>
               <div className="grid grid-cols-1 gap-5">
               <Input
                 required
@@ -136,9 +173,16 @@ const FileBasedCheckPage = () => {
                 })}
               />
               </div>
+
+              <Textarea
+                label="Description"
+                {...register("description")}
+                placeholder="Write a short description..."
+                className="min-h-[120px] resize-y"
+              />
             </FormSection>
 
-            <FormSection step={2} title="Classification" description="How this check is grouped and who is affected when it fails.">
+            <FormSection step={1} title="Classification" description="How this check is grouped and who is affected when it fails.">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <Controller
                 name="workstreamId"
@@ -232,7 +276,7 @@ const FileBasedCheckPage = () => {
               </div>
             </FormSection>
 
-            <FormSection step={3} title="Source & target" description="Where the file lives and is picked up, and where passing and failing rows are written.">
+            <FormSection step={2} title="Source & target" description="Where the file lives and is picked up, and where passing and failing rows are written.">
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <Controller
@@ -326,47 +370,39 @@ const FileBasedCheckPage = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-2 ">
                     <Input
-                      label="Source File Path"
+                      label="File Path"
                       required
                       error={errors.sourceFilePath?.message}
                       className="font-mono"
-                      placeholder="Eg. /healthcare"
+                      placeholder="Eg. healthcare/  or  healthcare/customers.csv"
                       {...register("sourceFilePath", {
-                        validate: value => {
-                          if (!isAwsS3) return true;
-                          return !!value?.trim() || "Source file path is required";
-                        },
-                        onBlur: event => {
-                          const split = splitPathAndFile(event.target.value);
-
-                          if (!split) return;
-
-                          setValue("sourceFilePath", split.path, { shouldValidate: true });
-                          setValue("sourceFileName", split.file, { shouldValidate: true });
-
-                          toast.success("Split the folder and the file name", {
-                            description: `Path ${split.path} - File ${split.file}`,
-                          });
-                        },
+                        validate: value => !!value?.trim() || "File path is required",
+                        onBlur: event => applyLocation(event.target.value),
                       })}
                     />
                     <p className="pl-2 text-xs text-muted-foreground mt-1">
-                      Folder only, inside the selected S3 bucket. Paste a full key and it is split for you.
+                      The folder inside the bucket, or the full path to the file. The file name is filled in for you.
                     </p>
                   </div>
 
                   <div className="space-y-2 ">
                     <Input
-                      label="Source File Name"
+                      label="File Name"
                       required
                       error={errors.sourceFileName?.message}
                       className="font-mono"
-                      placeholder="customer_master"
+                      placeholder="customers.csv"
                       {...register("sourceFileName", {
-                        required: "Source file name is required",
+                        required: "File name is required",
+                        validate: value =>
+                          FILE_EXTENSION.test(value.trim().split("/").pop() ?? "") ||
+                          "Include the extension, exactly as the file is saved (for example customers.csv)",
+                        onBlur: event => applyLocation(event.target.value),
                       })}
                     />
-                    <p className="pl-2 text-xs text-muted-foreground mt-1">Do not include file extension.</p>
+                    <p className="pl-2 text-xs text-muted-foreground mt-1">
+                      Exactly as it is saved, with its extension. The file type follows from it.
+                    </p>
                   </div>
                 </div>
 
@@ -473,23 +509,6 @@ const FileBasedCheckPage = () => {
               </div>
             </FormSection>
 
-            <FormSection step={4} title="Expected schema" description="The columns this file should have.">
-              <SchemaSourceChooser
-                onFetch={fetchSchemaFromSource}
-                isFetching={isGettingSchema}
-                canFetch={isAwsS3}
-                fetchBlockedReason="Choose S3 as the file location and a source connection first."
-                loadedColumns={uploadedColumns.length}
-                uploadPanel={
-                  <SchemaFileDrop
-                    onParsed={onSchemaFileParsed}
-                    loadedFileName={uploadedFileName}
-                    loadedRowCount={uploadedColumns.length}
-                  />
-                }
-              />
-            </FormSection>
-
             <div className="flex items-center justify-end gap-3 pt-2">
               <Button type="button" onClick={() => reset()} variant="secondary">
                 Cancel
@@ -497,9 +516,8 @@ const FileBasedCheckPage = () => {
 
               <Button
                 requires="configure"
-                isLoading={isGettingSchema}
                 type="submit"
-                disabled={isGettingSchema || selectedDownstreams.length === 0}>
+                disabled={selectedDownstreams.length === 0}>
                 Configure Fields
                 <HugeiconsIcon icon={ArrowRight02FreeIcons} size={18} />
               </Button>

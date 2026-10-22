@@ -40,12 +40,12 @@ _redis = redis.Redis.from_url(
     decode_responses=True,
 )
 
-# Claim window before the run is confirmed queued. Short on purpose: if this
-# process dies between claiming the key and enqueuing, the key self-heals in a
-# minute instead of poisoning that idempotency key for a full day.
-CLAIM_TTL_SECONDS = 60
-# Past any realistic retry, short enough that Redis does not grow forever.
-COMPLETED_TTL_SECONDS = 86_400
+# How long a repeated idempotency key is answered with the original run: 5 seconds,
+# for the claim before the run is queued and for the confirmed run alike. It is there to
+# absorb a double click or an immediate retry; a request after that is a new run, not a
+# replay. A caller that retries later than this (a slow Airflow retry, say) gets a second run.
+CLAIM_TTL_SECONDS = 5
+COMPLETED_TTL_SECONDS = 5
 
 # The engine already branches on these prefixes internally
 # (execution_df_generator.py: config_id.str.startswith("DBC"/"FBC")), so the
@@ -304,17 +304,38 @@ def submit_run(req: RunRequest, response: Response):
                         detail="idempotency key already used with a different payload",
                     )
                 state = celery_app.AsyncResult(prior_run_id).state
-                log.info(
-                    "REPLAY run_id=%s key=%s state=%s",
-                    prior_run_id, req.idempotency_key, state,
-                )
-                response.status_code = 200
-                return RunAccepted(
-                    run_id=prior_run_id,
-                    state=state,
-                    duplicate=True,
-                    submitted_at=time.time(),
-                )
+                if state in ("FAILURE", "REVOKED"):
+                    # A failed or cancelled attempt is not worth replaying: the caller is
+                    # retrying precisely because it did not work, often after fixing
+                    # something. Hand the key to this request and run again.
+                    log.info(
+                        "RETRY after %s run_id=%s key=%s", state, prior_run_id, req.idempotency_key
+                    )
+                    try:
+                        _redis.set(
+                            key,
+                            json.dumps({"run_id": run_id, "request_hash": req_hash}),
+                            ex=CLAIM_TTL_SECONDS,
+                        )
+                    except redis.RedisError as exc:
+                        log.error("idempotency store unreachable: %s", exc)
+                        raise HTTPException(
+                            status_code=503,
+                            detail="idempotency store unavailable: " + type(exc).__name__,
+                        )
+                    owns_claim = True
+                else:
+                    log.info(
+                        "REPLAY run_id=%s key=%s state=%s",
+                        prior_run_id, req.idempotency_key, state,
+                    )
+                    response.status_code = 200
+                    return RunAccepted(
+                        run_id=prior_run_id,
+                        state=state,
+                        duplicate=True,
+                        submitted_at=time.time(),
+                    )
 
     try:
         celery_app.send_task(

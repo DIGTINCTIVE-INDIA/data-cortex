@@ -32,6 +32,13 @@ app.conf.update(
     # process. Recycling the child bounds how far any leakage can carry.
     worker_max_tasks_per_child=50,
 
+    # Hard ceiling on one run. Without it a check that hangs (a driver deadlock, a connection
+    # the far end has dropped) holds its pool slot forever and the run shows "running" for good.
+    # A soft limit would not help: it raises a Python exception, which cannot interrupt a thread
+    # blocked inside native code. Past this the child is killed and the task marked failed.
+    # Raise it for legitimately longer runs.
+    task_time_limit=int(os.getenv("DC_RUN_TIME_LIMIT_SECONDS", "3600")),
+
     # Report STARTED so the API can distinguish "queued" from "running" -- the
     # two look identical to a caller otherwise, which makes queue-depth
     # measurements meaningless.

@@ -14,11 +14,17 @@ export function FormSection({
   description,
   children,
 }: {
-  step: number;
-  title: string;
-  description: string;
+  step?: number;
+  title?: string;
+  description?: string;
   children: ReactNode;
 }) {
+  // A group with no title is just fields: the first block (name, description) needs no
+  // heading to say what it is, and a numbered "Basics" above a name box added nothing.
+  if (!title) {
+    return <section className="space-y-5">{children}</section>;
+  }
+
   return (
     <section className="space-y-5 border-t border-border/60 pt-7 first:border-t-0 first:pt-0">
       <div className="flex items-start gap-3">
@@ -28,7 +34,7 @@ export function FormSection({
 
         <div className="space-y-0.5">
           <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-          <p className="text-xs text-muted-foreground">{description}</p>
+          {description && <p className="text-xs text-muted-foreground">{description}</p>}
         </div>
       </div>
 

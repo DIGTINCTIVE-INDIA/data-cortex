@@ -66,6 +66,26 @@ with, and the Azure app registration must list `http://localhost:5173` as a redi
 the page calls its own address, and the dev server forwards `/api` to the backend on port 3000.
 Sign-in still redirects to the address registered in Azure.
 
+## Setting up test data through the API
+
+`backend/api-tests/setup.ts` creates a full set of test connections, checks and users using only the HTTP API
+(nothing is read from the database or from internal code), so it exercises the same path as the UI.
+
+```bash
+cd backend
+cp api-tests/.env.example api-tests/.env     # then fill it in; every value is a TEST_* variable
+pnpm api:setup                               # core-server must be running on :3000
+```
+
+It creates 2 Postgres, 2 Snowflake and 1 S3 connection; database checks and custom SQL checks for
+SF to SF, PG to PG, SF to PG and PG to SF; file checks from S3 to Postgres and Snowflake; an engineer, an analyst
+and a service user; and fires one check with the service key. It checks no results: it prints the IDs it
+created and you look at them yourself. Each run adds new items with a fresh suffix, so running it twice
+duplicates them. Snowflake steps need `TEST_SF_PRIVATE_KEY`, or existing connection IDs in
+`TEST_SF_SOURCE_CONNECTION_ID` / `TEST_SF_TARGET_CONNECTION_ID`. If Snowflake is a production account, only
+configuration is created and no Snowflake run is fired. The service user's key is saved to
+`backend/api-tests/service-key.txt` (git-ignored).
+
 ## Checking that everything agrees
 
 ```bash

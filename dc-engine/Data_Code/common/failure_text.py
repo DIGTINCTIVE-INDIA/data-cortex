@@ -23,6 +23,16 @@ _CAUSES = [
         "finish the field configuration step.",
     ),
     (
+        r"no objects found with prefix|nosuchkey|no such key|key does not exist|file not found",
+        "The file for this check was not found in its storage location. It may not have been "
+        "uploaded yet, or it may have been moved or renamed.",
+    ),
+    (
+        r"no usable connection ids",
+        "None of the files or tables this run needed could be read, so nothing was checked. "
+        "Open the check's source and target and confirm they are reachable and the file exists.",
+    ),
+    (
         r"ssl syscall|server closed the connection|connection (was )?reset|eof detected",
         "The connection to the database was interrupted. Run the check again; if it keeps "
         "happening, the database may be unavailable.",
@@ -86,6 +96,16 @@ def readable_failure(error) -> str:
     to the reader, and most likely to leak internals.
     """
     text = str(error or "")
+
+    # Name the place that was searched: it is the person's own configured location, and
+    # the fastest way to see a wrong folder or file name.
+    missing = re.search(r"no objects (?:found with prefix|match pattern): (\S+)", text, re.IGNORECASE)
+    if missing:
+        return (
+            f"The file for this check was not found in its storage location (looked for "
+            f"\"{missing.group(1)}\"). It may not have been uploaded yet, or the folder or "
+            "file name in the configuration may be wrong."
+        )
 
     for pattern, explanation in _CAUSES:
         if re.search(pattern, text, re.IGNORECASE):

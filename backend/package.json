@@ -6,6 +6,7 @@
 	"scripts": {
 		"dev": "turbo run dev",
 		"db:init": "pnpm --filter @repo/db db:init",
+		"api:setup": "tsx --env-file=api-tests/.env api-tests/setup.ts",
 		"dev:debug": "turbo run dev:debug",
 		"bun:dev": "turbo run bun:dev",
 		"build": "turbo run build",

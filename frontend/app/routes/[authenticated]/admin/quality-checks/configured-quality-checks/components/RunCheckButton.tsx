@@ -91,7 +91,9 @@ export function RunCheckButton({ configId, source, enabled }: Props) {
         showQueued && "border-green-600/40 text-green-700 hover:bg-green-600/5 dark:text-green-500"
       )}
       isLoading={isRunPending}
-      disabled={!enabled}
+      // Locked for the 5 seconds the engine treats a repeat as the same run, so a double
+      // click cannot ask for a second one; after that the same check runs again.
+      disabled={!enabled || showQueued}
       onClick={handleClick}
       title={startedRun ? `Run id: ${startedRun.runId}` : undefined}>
       <AnimatePresence mode="wait" initial={false}>

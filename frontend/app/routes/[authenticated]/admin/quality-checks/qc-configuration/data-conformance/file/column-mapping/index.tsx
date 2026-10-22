@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils";
 import { ArrowLeft02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { FlowSteps } from "../../../components/FlowSteps";
+import { SchemaFileDrop } from "@/components/ui/custom/SchemaFileDrop";
+import { SchemaSourceChooser } from "../../../components/SchemaSourceChooser";
 import { useQcFIleConfProvider, type TraditionalDataType } from "../context/QcFIleConfProvider.js";
 
 export type QcFileRowConfiguration = {
@@ -242,17 +244,11 @@ const RiColumnSelect = ({
   );
 };
 
-const ColumnMapping = () => {
-  const { schema, onSaveConfiguration, activeDbConnections } = useQcFIleConfProvider();
+const FieldRules = () => {
+  const { schema, setSchema, onSaveConfiguration, activeDbConnections } = useQcFIleConfProvider();
   const navigate = useNavigate();
 
-  if (!schema) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <p className="text-sm text-muted-foreground">No schema found</p>
-      </div>
-    );
-  }
+  if (!schema) return null;
 
   // This read `dbConnections`, which the provider has never exposed, so the RI connection
   // dropdown was always empty and referential-integrity checks could not be configured here.
@@ -392,7 +388,15 @@ const ColumnMapping = () => {
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Field rules</h1>
 
-        <p className="text-sm text-muted-foreground">Configuring: {schema.fileName}</p>
+        <p className="text-sm text-muted-foreground">
+          Configuring: {schema.fileName}
+          <button
+            type="button"
+            onClick={() => setSchema(null)}
+            className="ml-3 text-primary underline-offset-4 hover:underline">
+            Change expected schema
+          </button>
+        </p>
       </div>
 
       <div className="rounded-3xl border border-border bg-card overflow-hidden">
@@ -689,6 +693,86 @@ const ColumnMapping = () => {
           </Button>
 
           <Button onClick={() => onSaveConfiguration(rowConfigurations)}>Save field rules</Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Step two. The expected schema is chosen here, before the rules that are set per column:
+ * it is what produces the columns, so asking for it on the first page put a decision about
+ * the file's contents ahead of the question of where the file is.
+ */
+const ColumnMapping = () => {
+  const {
+    schema,
+    setSchema,
+    watch,
+    isGettingSchema,
+    fetchSchemaFromSource,
+    isAwsS3,
+    uploadedColumns,
+    uploadedFileName,
+    onSchemaFileParsed,
+  } = useQcFIleConfProvider();
+
+  if (schema) return <FieldRules />;
+
+  const values = watch();
+
+  const useUploadedSchema = () => {
+    if (!uploadedColumns.length) return;
+
+    setSchema({
+      fileName: uploadedFileName ?? values.sourceFileName,
+      sourceFileType: values.sourceFileType,
+      sourceConnectionId: values.sourceConnectionId,
+      rowsScanned: 0,
+      columns: uploadedColumns.map(row => ({
+        columnName: row.field,
+        columnOrder: row.columnOrder,
+        dataType: row.dataType,
+        nullable: true,
+      })),
+    });
+  };
+
+  return (
+    <div className="space-y-8">
+      <FlowSteps
+        steps={[
+          { label: "Configuration", to: "/admin/quality-checks/qc-configuration/data-conformance/file" },
+          { label: "Field rules" },
+        ]}
+        current={1}
+      />
+
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Expected schema</h1>
+        <p className="text-sm text-muted-foreground">The columns this file should have, before you set rules on each.</p>
+      </div>
+
+      <div className="space-y-6 rounded-3xl border border-border bg-card p-6">
+        <SchemaSourceChooser
+          onFetch={fetchSchemaFromSource}
+          isFetching={isGettingSchema}
+          canFetch={isAwsS3}
+          fetchBlockedReason="Choose S3 as the file location and a source connection first."
+          loadedColumns={uploadedColumns.length}
+          uploadPanel={
+            <SchemaFileDrop
+              onParsed={onSchemaFileParsed}
+              loadedFileName={uploadedFileName}
+              loadedRowCount={uploadedColumns.length}
+            />
+          }
+        />
+
+        <div className="flex justify-end">
+          <Button type="button" onClick={useUploadedSchema} disabled={!uploadedColumns.length}>
+            Continue to field rules
+          </Button>
         </div>
       </div>
     </div>

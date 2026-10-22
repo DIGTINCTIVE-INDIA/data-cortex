@@ -51,7 +51,26 @@ def build_failure_message(
                     f'position {i+1} expected "{exp}" but found "{act}"'
                 )
 
-        return f"Column order mismatch in table {table_name}: " + ", ".join(mismatches)
+        # Positions only differ where both lists have a column. When the table simply has more
+        # or fewer columns than expected there is no positional mismatch to list, and the
+        # message used to end after the colon -- a failure with no stated reason.
+        expected_set = set(expected_columns)
+        actual_set = set(actual_columns)
+        extra = [col for col in actual_columns if col not in expected_set]
+        absent = [col for col in expected_columns if col not in actual_set]
+
+        parts = list(mismatches)
+
+        if len(actual_columns) != len(expected_columns):
+            parts.append(f"the table has {len(actual_columns)} columns but {len(expected_columns)} are expected")
+
+        if extra:
+            parts.append("unexpected columns " + ", ".join(f'"{col}"' for col in extra))
+
+        if absent:
+            parts.append("missing columns " + ", ".join(f'"{col}"' for col in absent))
+
+        return f"Column order mismatch in table {table_name}: " + ", ".join(parts)
 
     elif check_mapping_name == "datatype_check":
 

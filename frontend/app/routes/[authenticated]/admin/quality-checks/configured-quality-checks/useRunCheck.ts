@@ -33,7 +33,7 @@ const PAGE_TOKEN =
  * the state survive a card remounting when the list refetches.
  */
 /** How long the button keeps showing "Queued" before returning to "Run". */
-export const QUEUED_VISIBLE_MS = 10_000;
+export const QUEUED_VISIBLE_MS = 5_000;
 
 // startedAt drives that countdown. Stored here rather than in the component so the
 // remaining time is correct when a card remounts mid-window after a refetch, instead
@@ -137,8 +137,8 @@ export function useRunCheck() {
         toast.info(`${configId} is already running`, {
           id: toastId,
           description: result.runId
-            ? `Run id: ${result.runId}. Refresh the page to start a new run.`
-            : "Refresh the page to start a new run.",
+            ? `Run id: ${result.runId}. You can start another run in a few seconds.`
+            : "You can start another run in a few seconds.",
           duration: 8000,
         });
       } else {

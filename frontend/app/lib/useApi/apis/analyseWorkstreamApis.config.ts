@@ -58,6 +58,14 @@ const analyseWorkstreamApiConfig = {
     },
     responseType: undefined as unknown as QueryResponse<any>,
   },
+
+  "GET /api/analyse-workstreams/checks/:id/top-error-records": {
+    type: "query",
+    protected: true,
+    retry: 0,
+    query: undefined as unknown as { limit?: number },
+    responseType: undefined as unknown as QueryResponse<any>,
+  },
 } as const satisfies ApiObj;
 
 export default analyseWorkstreamApiConfig;

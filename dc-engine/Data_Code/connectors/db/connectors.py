@@ -14,12 +14,24 @@ from Data_Code.common.database import _safe_pg_identifier
 from Data_Code.common.encryption import decrypt_secret
 from Data_Code.common.exceptions import DataCodeConnectionError, DataCodeValidationError
 
-try:
-    import snowflake.connector
-except ImportError:
-    snowflake = None
-
 from Data_Code.common.logger import logger
+
+
+def _snowflake_connector():
+    """
+    Import the Snowflake driver on first use and return it, or None if it is not installed.
+
+    Deliberately NOT imported at module level. snowflake-connector-python 5.x logs in through a
+    native core that starts its own threads on import. Celery's prefork parent imports the engine
+    before forking its pool processes, so a module-level import leaves every forked child holding a
+    driver whose threads do not exist there, and its first login waits on them forever. Importing
+    inside the task keeps the driver out of the parent.
+    """
+    try:
+        import snowflake.connector
+    except ImportError:
+        return None
+    return snowflake.connector
 
 
 class SnowflakePrivateKeyError(Exception):
@@ -171,7 +183,8 @@ def build_connection(
     For password auth, pass the decrypted plain password as ``plain_password``.
     Exactly one of the two must be provided, matching ``settings.auth_method``.
     """
-    if not snowflake:
+    snowflake_connector = _snowflake_connector()
+    if not snowflake_connector:
         raise ImportError(
             "snowflake-connector-python is required for Snowflake connections. "
             "Install with `pip install snowflake-connector-python`."
@@ -212,7 +225,9 @@ def build_connection(
         settings.auth_method,
     )
 
-    return snowflake.connector.connect(**kwargs)
+    # Bounded login: a login that never answers fails after a minute with a real error.
+    kwargs["login_timeout"] = 60
+    return snowflake_connector.connect(**kwargs)
 
 
 def get_snowflake_connection(config: Dict[str, Any]):
@@ -227,7 +242,7 @@ def get_snowflake_connection(config: Dict[str, Any]):
         Exception: Snowflake connector errors (for example invalid credentials or network failures)
             are raised from ``snowflake.connector.connect`` and wrapped by callers as needed.
     """
-    if not snowflake:
+    if not _snowflake_connector():
         raise ImportError(
             "snowflake-connector-python is required for Snowflake connections. "
             "Install with `pip install snowflake-connector-python`."

@@ -139,7 +139,8 @@ const EditDbDialog = ({ item, disabled }: Props) => {
                       onValueChange={value => field.onChange(Number(value))}>
                       <SelectTrigger required label="Impacted Workstream">
                         <SelectValue placeholder="Select workstream">
-                          {workstreamItems.find((item: any) => String(item.id) === String(field.value))?.tagTitle ?? ""}
+                          {workstreamItems.find((item: any) => String(item.id) === String(field.value))?.tagTitle ??
+                            (field.value ? `Unavailable (#${field.value})` : "")}
                         </SelectValue>
                       </SelectTrigger>
 
@@ -165,7 +166,8 @@ const EditDbDialog = ({ item, disabled }: Props) => {
                       onValueChange={value => field.onChange(Number(value))}>
                       <SelectTrigger required label="Category">
                         <SelectValue placeholder="Select category">
-                          {categoryItems.find((item: any) => String(item.id) === String(field.value))?.tagTitle ?? ""}
+                          {categoryItems.find((item: any) => String(item.id) === String(field.value))?.tagTitle ??
+                            (field.value ? `Unavailable (#${field.value})` : "")}
                         </SelectValue>
                       </SelectTrigger>
 
@@ -191,7 +193,8 @@ const EditDbDialog = ({ item, disabled }: Props) => {
                       onValueChange={value => field.onChange(Number(value))}>
                       <SelectTrigger required label="Data Source">
                         <SelectValue placeholder="Select data source">
-                          {dataSourceItems.find((item: any) => String(item.id) === String(field.value))?.tagTitle ?? ""}
+                          {dataSourceItems.find((item: any) => String(item.id) === String(field.value))?.tagTitle ??
+                            (field.value ? `Unavailable (#${field.value})` : "")}
                         </SelectValue>
                       </SelectTrigger>
 
@@ -234,7 +237,7 @@ const EditDbDialog = ({ item, disabled }: Props) => {
                         <SelectValue placeholder="Select source database">
                           {
                             activeDbConnections.find((item: any) => String(item.connectionId) === String(field.value))
-                              ?.connectionName
+                              ?.connectionName ?? field.value
                           }
                         </SelectValue>
                       </SelectTrigger>
@@ -283,7 +286,7 @@ const EditDbDialog = ({ item, disabled }: Props) => {
                         <SelectValue placeholder="Select target connection">
                           {
                             activeDbConnections.find((item: any) => String(item.connectionId) === String(field.value))
-                              ?.connectionName
+                              ?.connectionName ?? field.value
                           }
                         </SelectValue>
                       </SelectTrigger>

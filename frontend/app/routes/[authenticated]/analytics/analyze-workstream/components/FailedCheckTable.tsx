@@ -106,11 +106,15 @@ const FailedCheckTable = () => {
                 Array.from({ length: 8 }).map((_, i) => <TableSkeletonRow key={i} />)
               ) : rows.length ? (
                 rows.map((row: any) => (
-                  <tr key={row.qcId} className="border-t border-border/60 transition hover:bg-muted/30">
-                    <td className="px-4 py-4 font-semibold text-foreground">{row.checkId ?? "—"}</td>
-                    <td className="px-4 py-4 text-foreground">{row.checkType}</td>
-                    <td className="px-4 py-4 text-foreground">{row.source}</td>
-                    <td className="px-4 py-4 font-mono text-xs text-foreground">{row.fileOrTableName}</td>
+                  <tr key={row.qcId} className="h-[76px] border-t border-border/60 transition hover:bg-muted/30">
+                    <td className="whitespace-nowrap px-4 py-4 font-semibold text-foreground">{row.checkId ?? "—"}</td>
+                    <td className="whitespace-nowrap px-4 py-4 text-foreground">{row.checkType}</td>
+                    <td className="whitespace-nowrap px-4 py-4 text-foreground">{row.source}</td>
+                    <td className="max-w-[220px] px-4 py-4 font-mono text-xs text-foreground">
+                      <p className="truncate" title={row.fileOrTableName ?? undefined}>
+                        {row.fileOrTableName}
+                      </p>
+                    </td>
                     {/* Two lines at most, so every row is the same height whatever the
                         message length; the full text is in the tooltip and in Details. */}
                     <td className="w-[380px] max-w-[380px] px-4 py-4 text-foreground">
@@ -127,7 +131,7 @@ const FailedCheckTable = () => {
                     <td className="px-4 py-4">
                       <StatusBadge value={row.latestStatus} />
                     </td>
-                    <td className="px-4 py-4 text-foreground">{formatDate(row.runDate)}</td>
+                    <td className="whitespace-nowrap px-4 py-4 text-foreground">{formatDate(row.runDate)}</td>
                     <td className="px-4 py-4">
                       {/* <Button onClick={handleView} variant="ghost" size="sm" className="text-primary">
                         View

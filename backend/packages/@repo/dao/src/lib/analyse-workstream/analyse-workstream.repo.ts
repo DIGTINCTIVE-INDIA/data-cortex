@@ -1,4 +1,19 @@
-import { and, db, eq, gte, isNull, results, sql } from "@repo/db";
+import {
+	and,
+	customBusinessChecksConfig,
+	databaseConnection,
+	db,
+	dbBasedChecksConfig,
+	eq,
+	fileBasedChecksConfig,
+	gte,
+	isNull,
+	results,
+	sql,
+	traditionalChecksLibraryRev,
+} from "@repo/db";
+import { ErrorResponse } from "@repo/lib/error-handlers-module";
+import { DBExplorerRepo } from "../db-explorer/db.explorer.repo.js";
 import { PaginationType, Paginator } from "@repo/lib";
 
 type WorkstreamPeriod = "ltd" | "current_batch" | "current_week" | "current_month" | "quarter_to_date" | "year_to_date" | "launch_to_date";
@@ -548,32 +563,74 @@ export class AnalyseWorkstreamRepo {
 	}
 
 	/**
-	 * NOT IMPLEMENTED -- this returns FABRICATED rows, not real failing records.
+	 * The rows a check rejected, read from the error table the engine wrote on the check's
+	 * target connection (`{target_table_prefix}_err`), so Postgres and Snowflake targets both
+	 * work through the same read-only explorer path.
 	 *
-	 * rowId, actual and expected below are invented from a loop index. Nothing here
-	 * reads the source data. It is wired to no endpoint on the frontend and must not
-	 * be, because the output is indistinguishable from a real finding.
-	 *
-	 * A real implementation needs one of:
-	 *   - the engine persisting failed row identifiers (it computes them in
-	 *     trad_ct_id/sql_executor.py but `results` has no column for them), or
-	 *   - re-running the check predicate against the source connection on demand.
-	 *
-	 * Until then the UI deliberately has no "View Top 100" control.
+	 * `results` keeps counts only, so the rows are found from the config: result -> config
+	 * -> target connection + prefix -> that job's rows in the error table. Traditional checks
+	 * mark each failed row in a column named after the check; custom checks tag each row with
+	 * the check id. Table-level checks (row count, for instance) reject no single row, so they
+	 * have none to show and say so rather than showing an empty grid.
 	 */
 	async getTopErrorRecords(id: number, limit = 100) {
 		const [base] = await db.select().from(results).where(eq(results.checkExecutionId, id)).limit(1);
-		if (!base) return [];
+		if (!base) throw new ErrorResponse("Check result not found", 404);
 
-		return Array.from({ length: Math.min(limit, 100) }).map((_, index) => ({
-			index: index + 1,
-			rowId: 1001 + index,
-			table: base.fileOrTableName,
-			column: base.field,
-			actual: index % 2 === 0 ? "NULL" : `invalid_${index}`,
-			expected: "valid value",
-			errorDescription: base.failureReason ?? "Quality check failed",
-			detectedAt: base.jobTimestamp,
-		}));
+		const configId = base.configId ?? "";
+		const [config] = configId.startsWith("FBC")
+			? await db.select().from(fileBasedChecksConfig).where(eq(fileBasedChecksConfig.configId, configId)).limit(1)
+			: configId.startsWith("CB")
+				? await db.select().from(customBusinessChecksConfig).where(eq(customBusinessChecksConfig.checkId, configId)).limit(1)
+				: await db.select().from(dbBasedChecksConfig).where(eq(dbBasedChecksConfig.configId, configId)).limit(1);
+
+		const empty = (note: string) => ({ columns: [], rows: [], hasMore: false, note });
+
+		if (!config) return empty("The configuration for this check no longer exists, so its error records cannot be located.");
+
+		const [connection] = await db
+			.select({ databaseType: databaseConnection.databaseType })
+			.from(databaseConnection)
+			.where(eq(databaseConnection.connectionId, config.targetConnectionId))
+			.limit(1);
+		if (!connection) return empty("The target connection for this check no longer exists.");
+
+		// The engine quotes Snowflake identifiers upper-case and Postgres ones as written.
+		const isSnowflake = connection.databaseType === "snowflake";
+		const ident = (name: string) => `"${(isSnowflake ? name.toUpperCase() : name).replace(/"/g, '""')}"`;
+		const lit = (value: string) => `'${value.replace(/'/g, "''")}'`;
+
+		const table = ident(`${config.targetTablePrefix}_err`);
+		const conditions = [`${ident("_job_id")} = ${lit(base.jobId)}`];
+
+		if (configId.startsWith("CB")) {
+			// The engine stores this value wrapped in quote characters.
+			conditions.push(`${ident("_check_id")} LIKE ${lit(`%${configId}%`)}`);
+		} else {
+			const [library] = await db
+				.select({ mapping: traditionalChecksLibraryRev.checkMappingName })
+				.from(traditionalChecksLibraryRev)
+				.where(eq(traditionalChecksLibraryRev.checkId, base.checkId))
+				.limit(1);
+			if (!library) return empty("This check has no individual error records.");
+			conditions.push(`${ident(`_${library.mapping}`)} LIKE ${lit('%"Fail"%')}`);
+		}
+
+		try {
+			const result = await new DBExplorerRepo().executeQuery(config.targetConnectionId, {
+				sqlQuery: `SELECT * FROM ${table} WHERE ${conditions.join(" AND ")}`,
+				page: 1,
+				pageSize: Math.min(limit, 100),
+			});
+			return { columns: result.columns, rows: result.rows, hasMore: result.pagination.hasMore, note: null as string | null };
+		} catch (error) {
+			const message = String((error as { message?: string })?.message ?? "");
+			// A missing table or column means this check wrote no error rows (it passed, was
+			// table-level, or the landing option was off), which is not a fault to show.
+			if (/does not exist|invalid identifier|not authorized|SQL compilation error/i.test(message)) {
+				return empty("No error records were stored for this check. It may check the table as a whole, or the error table has not been created yet.");
+			}
+			throw error;
+		}
 	}
 }

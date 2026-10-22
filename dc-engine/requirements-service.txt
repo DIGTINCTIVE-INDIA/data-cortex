@@ -6,9 +6,11 @@ celery[redis]
 redis
 
 # Was previously inherited for free from the apache/airflow base image via its
-# bundled snowflake provider. dc-engine no longer builds on that image, and
-# trad_ct_id/cursor_factory.py imports snowflake.connector at MODULE level --
-# so without this, importing dc_engine fails outright.
+# bundled snowflake provider. dc-engine no longer builds on that image.
+# Version 5.x runs logins in a native core with its own threads, so it must NEVER be imported
+# at module level in anything the Celery parent loads (the forked pool processes would inherit
+# a driver without its threads and hang on login). It is imported lazily, inside the task:
+# see _snowflake_connector() in Data_Code/connectors/db/connectors.py.
 snowflake-connector-python
 
 # Pinned, and this one is load-bearing. requirements.txt lists sqlalchemy

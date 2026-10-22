@@ -1,7 +1,6 @@
 # Returns a dictionary cursor for the given database connection.
 
 from psycopg2.extras import RealDictCursor
-from snowflake.connector import DictCursor
 
 
 def get_cursor(connection, database_type):
@@ -17,6 +16,9 @@ def get_cursor(connection, database_type):
         return connection.cursor(cursor_factory=RealDictCursor)
 
     elif database_type == "snowflake":
+        # Imported here, not at module level: see _snowflake_connector() in
+        # Data_Code/connectors/db/connectors.py (the driver must not load before Celery forks).
+        from snowflake.connector import DictCursor
         return connection.cursor(DictCursor)
 
     else:

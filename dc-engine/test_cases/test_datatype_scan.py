@@ -271,14 +271,14 @@ def test_snowflake_scan_sql_uses_snowflake_functions_and_no_backslashes():
         "public", "hcp", [("age", INTEGER), ("seen", DATETIME), ("flag", BOOLEAN)], "snowflake"
     )
     assert "REGEXP_LIKE(" in sql and "TO_VARCHAR(" in sql
-    assert " ~ " not in sql and "CAST(" not in sql        # the Postgres spellings
+    assert " ~ " not in sql and "::" not in sql and "BTRIM(" not in sql   # the Postgres spellings
     assert "\\" not in sql
     assert '"PUBLIC"."HCP"' in sql and '"AGE"' in sql
 
 
 def test_postgres_scan_sql_uses_postgres_functions():
     sql = build_scan_sql("public", "hcp", [("age", INTEGER)], "postgres")
-    assert " ~ " in sql and "CAST(" in sql and "REGEXP_LIKE" not in sql
+    assert " ~ " in sql and "CAST(" in sql and "BTRIM(" in sql and "REGEXP_LIKE" not in sql and "TRY_CAST" not in sql
 
 
 # --------------------------------------------- frontend / engine vocabulary --

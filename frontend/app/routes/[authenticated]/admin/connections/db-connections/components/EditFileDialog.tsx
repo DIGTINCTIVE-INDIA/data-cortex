@@ -40,12 +40,13 @@ const EditFileDialog: FC<EditFileDialogProps> = ({ item, disabled }) => {
   useEffect(() => {
     if (item && open) {
       reset({
-        name: item.connectionName,
-        bucketName: item.bucketOrContainerName,
-        region: item.region,
-        accessKeyId: item.accessKeyId,
-        secretKey: item.secretKey,
-        endpointUrl: item.endpointUrl,
+        name: item.connectionName ?? "",
+        bucketName: item.bucketOrContainerName ?? "",
+        region: item.region ?? "",
+        accessKeyId: item.accessKeyId ?? "",
+        // The stored secret is never sent to the browser; blank means keep the current one.
+        secretKey: "",
+        endpointUrl: item.endpointUrl ?? "",
       });
     }
   }, [item, open, reset]);
@@ -58,14 +59,15 @@ const EditFileDialog: FC<EditFileDialogProps> = ({ item, disabled }) => {
         bucketName: data.bucketName,
         region: data.region,
         accessKeyId: data.accessKeyId,
-        secretKey: data.secretKey,
+        ...(data.secretKey ? { secretKey: data.secretKey } : {}),
         endpointUrl: data.endpointUrl,
       });
 
       toast.success("Connection updated successfully");
       setOpen(false);
-    } catch {
-      toast.error("Failed to update connection");
+    } catch (error) {
+      const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error("Failed to update connection", message ? { description: message, duration: 10000 } : undefined);
     }
   };
 

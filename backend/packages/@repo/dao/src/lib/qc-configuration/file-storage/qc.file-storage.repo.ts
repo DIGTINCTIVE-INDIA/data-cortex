@@ -68,7 +68,7 @@ export class QCFileConfigurationRepo {
 		}
 
 		return {
-			fileName: `${payload.sourceFileName}.${QCFileSchemaRepo.getExtension(payload.sourceFileType)}`,
+			fileName: QCFileSchemaRepo.buildFileName(payload.sourceFileName, payload.sourceFileType),
 			sourceFileType: payload.sourceFileType,
 			sourceConnectionId: payload.sourceConnectionId,
 			rowsScanned: rows.length,

@@ -842,28 +842,18 @@ class FileConnectionManager:
             rds_conn = rds_connector.get_connection()
             cursor = rds_conn.cursor()
 
-            # Build columns, in configured column_order
+            # Build columns, in configured column_order.
+            #
+            # Every column is staged as TEXT, whatever type the schema declares. The declared
+            # type is what the file SHOULD hold; typing the staging table with it made the
+            # database refuse a bad value ("abc" into an INTEGER column failed the whole
+            # insert, so the job died instead of the data-type check reporting it) or
+            # quietly rewrite one (a date in another format became a different date). With
+            # text, the data-type check reads exactly what the file contains.
             columns = []
             for col_name, col_spec in ordered_columns:
-                col_type = col_spec["dtype"]
-                sql_type = col_type.upper()
-                if sql_type in ['STRING', 'TEXT', 'VARCHAR']:
-                    sql_type = 'TEXT'
-                elif sql_type in ['INTEGER', 'INT']:
-                    sql_type = 'INTEGER'
-                elif sql_type in ['FLOAT', 'DOUBLE']:
-                    sql_type = 'DOUBLE PRECISION' if rds_engine == 'postgresql' else 'DOUBLE'
-                elif sql_type in ['DECIMAL', 'NUMERIC']:
-                    sql_type = 'NUMERIC' if rds_engine == 'postgresql' else 'DECIMAL'
-                elif sql_type == 'BOOLEAN':
-                    sql_type = 'BOOLEAN'
-                elif sql_type == 'DATE':
-                    sql_type = 'DATE'
-                elif sql_type == 'TIMESTAMP':
-                    sql_type = 'TIMESTAMP'
-                else:
-                    sql_type = col_type.upper()
-                
+                sql_type = 'TEXT'
+
                 safe_col_name = col_name.replace('-', '_').replace(' ', '_')
                 safe_col_name = ''.join(c for c in safe_col_name if c.isalnum() or c == '_')
                 
@@ -919,18 +909,12 @@ class FileConnectionManager:
                 values = []
                 for col_name in col_names:
                     val = row.get(col_name)
-                    col_type = (schema_data.get(col_name, {}).get("dtype") or '').upper()
                     if val is None or val == '':
                         values.append(None)
                     elif isinstance(val, str) and val.strip().lower() == 'null':
                         values.append(None)
-                    elif col_type in ['DATE', 'TIMESTAMP', 'DATETIME']:
-                        # Parse the date using the existing helper method
-                        # psycopg2 will serialize real datetime objects into PostgreSQL's standard format
-                        values.append(self._try_parse_date(val))
                     else:
-                        # Append raw value to preserve trailing zeros and exact date formattings
-                        values.append(val)
+                        values.append(self._as_staged_text(val))
                 rows_to_insert.append(tuple(values))
 
             # Batched insert. Per-row execute meant one network round-trip per
@@ -973,6 +957,28 @@ class FileConnectionManager:
                         rds_conn.close()
                 except Exception as close_error:
                     self.log_system("INGEST_CONN_CLOSE_WARNING", "WARNING", f"Failed to close RDS connection for {table_name}: {str(close_error)}")
+
+    @staticmethod
+    def _as_staged_text(value: Any) -> str:
+        """
+        The text a parsed cell is staged as. CSV cells are already text and are kept
+        untouched (so "007" and "12.50" stay as written). Spreadsheet and JSON cells arrive
+        as Python values, and are written the way a reader would see them: ISO dates and
+        timestamps, true/false, plain numbers, nested values as JSON.
+        """
+        if isinstance(value, str):
+            return value
+
+        if isinstance(value, bool):
+            return "true" if value else "false"
+
+        if isinstance(value, (datetime.datetime, datetime.date)):
+            return value.isoformat()
+
+        if isinstance(value, (dict, list, tuple)):
+            return json.dumps(value, default=str)
+
+        return str(value)
 
     def delete_table(self, cursor: Any, table_name: str, schema: Optional[str] = None) -> str:
         """

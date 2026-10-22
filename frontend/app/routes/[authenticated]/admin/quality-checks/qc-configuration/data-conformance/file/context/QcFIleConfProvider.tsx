@@ -153,7 +153,6 @@ export const QcFIleConfProvider = ({ children }: { children: React.ReactNode }) 
     watch,
     reset,
     setValue,
-    trigger,
     formState: { errors },
   } = useForm<FileBasedCheckFormValues>({
     mode: "onChange",
@@ -229,11 +228,13 @@ export const QcFIleConfProvider = ({ children }: { children: React.ReactNode }) 
    * way to state what SHOULD be there; this is for when the file is the reference.
    */
   const fetchSchemaFromSource = async () => {
-    const valid = await trigger();
+    // The configuration page has already validated these; this page does not render the
+    // fields, so they are checked by value rather than through the form's own validation.
+    const values = watch();
 
-    if (!valid || selectedDownstreams.length === 0) {
-      toast.error("Complete the form first", {
-        description: "The file is found from the connection, path, name and type above.",
+    if (!values.sourceConnectionId || !values.sourceFileName || !values.targetConnectionId || selectedDownstreams.length === 0) {
+      toast.error("Complete the configuration first", {
+        description: "The file is found from the connection, path and name on the previous page.",
       });
       return;
     }
@@ -273,30 +274,8 @@ export const QcFIleConfProvider = ({ children }: { children: React.ReactNode }) 
     }
   };
 
-  const onSubmit = async (data: FileBasedCheckFormValues) => {
-    // The declared schema comes from the uploaded file, never from reading the source.
-    // A quality check has to be able to report that the source drifted from what was
-    // agreed, which is impossible if the expectation is derived from the source itself.
-    if (!uploadedColumns.length) {
-      toast.error("Upload a schema file first", {
-        description: "It lists the expected column name, order and data type.",
-      });
-      return;
-    }
-
-    setSchema({
-      fileName: uploadedFileName ?? data.sourceFileName,
-      sourceFileType: data.sourceFileType,
-      sourceConnectionId: data.sourceConnectionId,
-      rowsScanned: 0,
-      columns: uploadedColumns.map(row => ({
-        columnName: row.field,
-        columnOrder: row.columnOrder,
-        dataType: row.dataType,
-        nullable: true,
-      })),
-    });
-
+  const onSubmit = async () => {
+    // The expected schema is chosen on the next page, with the field rules it feeds.
     navigate("/admin/quality-checks/qc-configuration/data-conformance/file/column-mapping");
   };
 

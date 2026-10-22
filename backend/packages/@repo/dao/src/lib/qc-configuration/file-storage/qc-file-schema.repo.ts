@@ -25,13 +25,19 @@ export class QCFileSchemaRepo {
 		}
 	}
 
+	/**
+	 * The configured name is the object's exact name, extension included. Only a name saved
+	 * without one (older configs) gets the extension its file type implies.
+	 */
+	static buildFileName(fileName: string, fileType: SourceFileType): string {
+		const cleanName = fileName.trim().replace(/^\/+|\/+$/g, "");
+		return /\.[A-Za-z0-9]{1,8}$/.test(cleanName) ? cleanName : `${cleanName}.${this.getExtension(fileType)}`;
+	}
+
 	static buildFileKey(path: string, fileName: string, fileType: SourceFileType): string {
 		const cleanPath = path.replace(/^\/+|\/+$/g, "");
-		const cleanName = fileName.replace(/^\/+|\/+$/g, "").replace(/\.(csv|xlsx|xls|json)$/i, "");
 
-		const extension = this.getExtension(fileType);
-
-		return [cleanPath, `${cleanName}.${extension}`].filter(Boolean).join("/");
+		return [cleanPath, this.buildFileName(fileName, fileType)].filter(Boolean).join("/");
 	}
 
 	static getExtension(fileType: SourceFileType): "csv" | "xlsx" | "json" {

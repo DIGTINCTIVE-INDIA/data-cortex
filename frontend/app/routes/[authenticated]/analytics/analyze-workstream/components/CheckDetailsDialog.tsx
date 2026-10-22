@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { MemoEChart } from "../../dashboard/components/Chart";
 import { useChartTheme } from "../../dashboard/hooks/useChartTheme";
 import buildCheckHistoryChart from "../utils/buildCheckHistoryChart";
-import { useNavigate } from "react-router";
+import ErrorRecordsDialog from "./ErrorRecordsDialog";
 
 type CheckDetailsDialogProps = {
   qcId: number | null;
@@ -14,8 +14,6 @@ type CheckDetailsDialogProps = {
 
 export default function CheckDetailsDialog({ qcId }: CheckDetailsDialogProps) {
   const { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, open, setOpen } = useDialog();
-
-  const navigate = useNavigate();
 
   const c = useChartTheme();
 
@@ -178,13 +176,7 @@ export default function CheckDetailsDialog({ qcId }: CheckDetailsDialogProps) {
 
                           <td className="px-4 py-4 text-right">
                             <div className="flex flex-col items-end">
-                              <Button
-                                onClick={() => navigate("/investigate/database-explorer")}
-                                variant="link"
-                                size="sm"
-                                className="h-auto justify-end p-0">
-                                View All Error Records
-                              </Button>
+                              <ErrorRecordsDialog executionId={row.executionId} failedCount={row.failed} />
 
                             </div>
                           </td>

@@ -1,7 +1,19 @@
 import { registry } from "@/container.js";
+import {
+	customBusinessChecksConfig,
+	databaseConnection,
+	db,
+	dbBasedChecksConfig,
+	eq,
+	fileBasedChecksConfig,
+	fileConnection,
+	inArray,
+	traditionalConfigDetails,
+} from "@repo/db";
 import { jsonResponse, validate } from "@repo/lib";
 import { catchAsync, ErrorResponse } from "@repo/lib/error-handlers-module";
 import { logger } from "@repo/logger";
+import { createHash } from "node:crypto";
 
 import { runCheckValidator } from "./run.validator.js";
 
@@ -100,6 +112,52 @@ async function submitToEngine(payload: EngineRunRequest): Promise<EngineRunAccep
 	return accepted;
 }
 
+/**
+ * A fingerprint of everything a run depends on: the check's configuration, its field
+ * rules, and the source and target connections (credentials included, so a changed
+ * password counts). It goes into the idempotency key, so a repeated key stops meaning
+ * "the same run" the moment the check or anything it uses is edited -- otherwise a retry
+ * after fixing a bad path or connection would be answered with the failed run it was
+ * meant to replace.
+ *
+ * Content, not timestamps: not every edit path bumps `updated_at`.
+ */
+async function configVersion(configId: string): Promise<string> {
+	const [config] = configId.startsWith("FBC")
+		? await db.select().from(fileBasedChecksConfig).where(eq(fileBasedChecksConfig.configId, configId)).limit(1)
+		: configId.startsWith("CB")
+			? await db.select().from(customBusinessChecksConfig).where(eq(customBusinessChecksConfig.checkId, configId)).limit(1)
+			: await db.select().from(dbBasedChecksConfig).where(eq(dbBasedChecksConfig.configId, configId)).limit(1);
+
+	if (!config) return "none";
+
+	const connectionIds = Object.entries(config)
+		.filter(([key, value]) => /ConnectionId$/.test(key) && typeof value === "string")
+		.map(([, value]) => value as string);
+
+	const [rules, dbConnections, fileConnections] = await Promise.all([
+		configId.startsWith("CB")
+			? Promise.resolve([])
+			: db.select().from(traditionalConfigDetails).where(eq(traditionalConfigDetails.configId, configId)),
+		connectionIds.length ? db.select().from(databaseConnection).where(inArray(databaseConnection.connectionId, connectionIds)) : [],
+		connectionIds.length ? db.select().from(fileConnection).where(inArray(fileConnection.connectionId, connectionIds)) : [],
+	]);
+
+	const byKey = <T extends object>(rows: T[], key: keyof T) => [...rows].sort((a, b) => String(a[key]).localeCompare(String(b[key])));
+
+	return createHash("sha256")
+		.update(
+			JSON.stringify([
+				config,
+				byKey(rules, "tcReqId"),
+				byKey(dbConnections, "connectionId"),
+				byKey(fileConnections, "connectionId"),
+			]),
+		)
+		.digest("hex")
+		.slice(0, 16);
+}
+
 export class QCRunController {
 	static runCheck = catchAsync(async (req, res) => {
 		const { configId, source, idempotencyKey } = await validate(runCheckValidator, req.body);
@@ -115,7 +173,7 @@ export class QCRunController {
 			config_id: configId,
 			user_id: userId,
 			notify,
-			...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
+			...(idempotencyKey ? { idempotency_key: `${idempotencyKey}@${await configVersion(configId)}` } : {}),
 		});
 
 		const isDuplicate = accepted.duplicate === true;

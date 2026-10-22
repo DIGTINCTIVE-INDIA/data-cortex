@@ -109,7 +109,7 @@ const CustomSqlCheckPage = () => {
               </div>
             </div>
 
-            <FormSection step={1} title="Basics" description="What this check is called and what it is for.">
+            <FormSection>
               <div className="grid grid-cols-1 gap-5">
               <Input
                 label="Check Name"
@@ -128,7 +128,7 @@ const CustomSqlCheckPage = () => {
             />
             </FormSection>
 
-            <FormSection step={2} title="Classification" description="How this check is grouped and who is affected when it fails.">
+            <FormSection step={1} title="Classification" description="How this check is grouped and who is affected when it fails.">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <Controller
                 name="workstreamId"
@@ -221,7 +221,7 @@ const CustomSqlCheckPage = () => {
               </div>
             </FormSection>
 
-            <FormSection step={3} title="Connections" description="Where the query runs, and where passing and failing rows are written.">
+            <FormSection step={2} title="Connections" description="Where the query runs, and where passing and failing rows are written.">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <Controller
                 name="sourceConnectionId"
@@ -312,7 +312,7 @@ const CustomSqlCheckPage = () => {
             )}
             </FormSection>
 
-            <FormSection step={4} title="Query" description="The SQL that selects the rows which should fail.">
+            <FormSection step={3} title="Query" description="The SQL that selects the rows which should fail.">
             <div className="space-y-3">
               <div className="space-y-1">
                 <Label className="text-sm font-medium text-foreground">
@@ -374,7 +374,7 @@ const CustomSqlCheckPage = () => {
             </div>
             </FormSection>
 
-            <FormSection step={5} title="When it fails" description="How serious a failure is, and what people are told.">
+            <FormSection step={4} title="When it fails" description="How serious a failure is, and what people are told.">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <Controller
                 name="criticality"

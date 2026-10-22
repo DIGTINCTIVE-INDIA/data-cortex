@@ -436,25 +436,29 @@ class GenerateExecutionDF:
                      source_file_path) = group
                     source_file_delimiter = None
                 try:
-                    # Ensure .csv extension
-                    if file_name and not str(file_name).endswith(".csv"):
-                        file_name_csv = f"{file_name}.csv"
-                    else:
-                        file_name_csv = file_name
+                    # The configured name is the object's exact name, extension included.
+                    # Only a name saved without one (older configs) gets the extension its
+                    # file type implies; it used to be forced to .csv whatever the type.
+                    known_exts = (".csv", ".tsv", ".txt", ".xlsx", ".xls", ".json", ".parquet")
+                    file_name_csv = str(file_name or "").strip()
+                    if file_name_csv and not file_name_csv.lower().endswith(known_exts):
+                        file_name_csv += {"excel": ".xlsx", "json": ".json"}.get(str(file_type), ".csv")
 
-                    # Folder prefix comes from the config's own source_file_path when set
-                    # (whether it's a bare folder like "team_folder/" or the full path
-                    # including the filename, e.g. "team_folder/vendors.csv" -- either
-                    # way we want just the folder portion here). Falls back to the
-                    # legacy hardcoded "Data_Cortex/" only when source_file_path is blank.
+                    # Folder prefix comes from the config's own source_file_path when set.
+                    # It may be a folder ("team_folder", "/team_folder/") or, in older
+                    # configs, the full key including the file ("team_folder/vendors.csv");
+                    # only the folder part is wanted here. A folder given without a trailing
+                    # slash used to lose its last segment. The legacy "Data_Cortex/" is used
+                    # only when source_file_path is blank.
                     if source_file_path and str(source_file_path).strip():
-                        path_str = str(source_file_path).strip()
-                        if path_str.endswith("/"):
+                        path_str = str(source_file_path).strip().replace("\\", "/").lstrip("/")
+                        last_segment = path_str.rstrip("/").rsplit("/", 1)[-1]
+                        if not path_str or path_str.endswith("/"):
                             endpoint_url = path_str
-                        elif "/" in path_str:
-                            endpoint_url = path_str.rsplit("/", 1)[0] + "/"
+                        elif last_segment.lower().endswith(known_exts):
+                            endpoint_url = path_str[: -len(last_segment)]
                         else:
-                            endpoint_url = ""
+                            endpoint_url = path_str + "/"
                     else:
                         endpoint_url = default_endpoint_url
 

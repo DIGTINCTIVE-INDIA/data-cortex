@@ -47,3 +47,9 @@ results/
 New folder/
 DataCortex/
 db-watch/node_modules/
+
+# ---- API test setup: the key it generates for the service user ----
+backend/api-tests/service-key.txt
+
+# service API keys written by the api-test setup
+service-key*.txt

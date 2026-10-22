@@ -65,10 +65,11 @@ const EditFileDialog = ({ item, disabled }: Props) => {
         dataSourceId: Number(item.dataSource) || 0,
         impactedDownstreamIds: downstreams,
         sourceConnectionId: item.sourceConnectionId || "",
-        // FileAvailableOn: "s3",
+        // The only storage supported today; the saved config does not carry it.
+        fileAvailableOn: "s3",
         sourceFileName: item.sourceFileName || "",
         sourceFilePath: item.sourceFilePath || "",
-        sourceFileType: item.sourceFileType || "",
+        sourceFileType: item.sourceFileType || "csv",
         targetConnectionId: item.targetConnectionId || "",
         targetTableNamePrefix: item.targetTablePrefix || "",
         createLanding: item.landingTable || false,
@@ -134,7 +135,8 @@ const EditFileDialog = ({ item, disabled }: Props) => {
                       onValueChange={value => field.onChange(Number(value))}>
                       <SelectTrigger required label="Impacted Workstream">
                         <SelectValue placeholder="Select workstream">
-                          {workstreamItems.find((item: any) => String(item.id) === String(field.value))?.tagTitle ?? ""}
+                          {workstreamItems.find((item: any) => String(item.id) === String(field.value))?.tagTitle ??
+                            (field.value ? `Unavailable (#${field.value})` : "")}
                         </SelectValue>
                       </SelectTrigger>
 
@@ -160,7 +162,8 @@ const EditFileDialog = ({ item, disabled }: Props) => {
                       onValueChange={value => field.onChange(Number(value))}>
                       <SelectTrigger required label="Category">
                         <SelectValue placeholder="Select category">
-                          {categoryItems.find((item: any) => String(item.id) === String(field.value))?.tagTitle ?? ""}
+                          {categoryItems.find((item: any) => String(item.id) === String(field.value))?.tagTitle ??
+                            (field.value ? `Unavailable (#${field.value})` : "")}
                         </SelectValue>
                       </SelectTrigger>
 
@@ -186,7 +189,8 @@ const EditFileDialog = ({ item, disabled }: Props) => {
                       onValueChange={value => field.onChange(Number(value))}>
                       <SelectTrigger required label="Data Source">
                         <SelectValue placeholder="Select data source">
-                          {dataSourceItems.find((item: any) => String(item.id) === String(field.value))?.tagTitle ?? ""}
+                          {dataSourceItems.find((item: any) => String(item.id) === String(field.value))?.tagTitle ??
+                            (field.value ? `Unavailable (#${field.value})` : "")}
                         </SelectValue>
                       </SelectTrigger>
 
@@ -274,7 +278,7 @@ const EditFileDialog = ({ item, disabled }: Props) => {
                         <Select value={field.value || undefined} onValueChange={field.onChange}>
                           <SelectTrigger required label="Source Connection">
                             <SelectValue placeholder="Select source file connection">
-                              {selected?.connectionName || selected?.connectionId}
+                              {selected?.connectionName || selected?.connectionId || field.value}
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
@@ -290,22 +294,22 @@ const EditFileDialog = ({ item, disabled }: Props) => {
                   />
 
                   <div className="space-y-2 ">
-                    <Input required label="Source File Path" placeholder="Eg. /healthcare" {...register("sourceFilePath")} />
+                    <Input required label="File Path" placeholder="Eg. healthcare/" {...register("sourceFilePath")} />
                     <p className="pl-2 text-xs text-muted-foreground mt-1">
-                      Enter the folder path inside the selected S3 bucket.
+                      The folder inside the selected S3 bucket.
                     </p>
                   </div>
 
                   <div className="space-y-2 ">
                     <Input
                       required
-                      label="Source File Name"
-                      placeholder="customer_master"
+                      label="File Name"
+                      placeholder="customers.csv"
                       {...register("sourceFileName", {
                         required: "Source file name is required",
                       })}
                     />
-                    <p className="pl-2 text-xs text-muted-foreground mt-1">Do not include file extension.</p>
+                    <p className="pl-2 text-xs text-muted-foreground mt-1">Exactly as it is saved, with its extension.</p>
                   </div>
                 </div>
 
@@ -322,7 +326,7 @@ const EditFileDialog = ({ item, disabled }: Props) => {
                         <Select value={field.value || undefined} onValueChange={field.onChange}>
                           <SelectTrigger label="Target DB Connection" required>
                             <SelectValue placeholder="Select target DB connection">
-                              {selected?.connectionName || selected?.connectionId}
+                              {selected?.connectionName || selected?.connectionId || field.value}
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent>

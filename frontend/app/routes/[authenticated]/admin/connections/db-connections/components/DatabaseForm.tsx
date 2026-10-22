@@ -166,7 +166,7 @@ export const DatabaseForm = () => {
       snowflakeAccount: "",
       snowflakeWarehouse: "",
       snowflakeRole: "",
-      snowflakeAuthType: "password",
+      snowflakeAuthType: "key-pair",
       snowflakePrivateKey: "",
       snowflakePassphrase: "",
       ssl: true,
@@ -527,49 +527,18 @@ export const DatabaseForm = () => {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <Input
-              required
-              label="Username"
-              placeholder="SERVICE_USER"
-              error={errors.username?.message}
-              {...register("username", {
-                required: "Username is required",
-              })}
-            />
+          <Input
+            required
+            label="Username"
+            placeholder="SERVICE_USER"
+            error={errors.username?.message}
+            {...register("username", {
+              required: "Username is required",
+            })}
+          />
 
-            <Controller
-              name="snowflakeAuthType"
-              control={control}
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger label="Authentication" error={errors.snowflakeAuthType?.message}>
-                    <SelectValue placeholder="Select authentication">
-                      {field.value === "password" && "Password"}
-                      {field.value === "key-pair" && "Key pair"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="password">Password</SelectItem>
-                    <SelectItem value="key-pair">Key pair</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
-
-          {!isKeyPair ? (
-            <Input
-              required
-              label="Password"
-              type="password"
-              placeholder="••••••••"
-              error={errors.password?.message}
-              {...register("password", {
-                validate: value => isKeyPair || value.trim().length > 0 || "Password is required",
-              })}
-            />
-          ) : (
+          {/* Snowflake connections use key-pair authentication only. */}
+          {isKeyPair && (
             <div className="space-y-4 rounded-xl border border-border bg-card px-4 py-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>

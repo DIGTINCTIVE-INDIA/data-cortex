@@ -10,9 +10,14 @@ anything that is not one. Only the values can tell, so the values are read.
 Rules, per declared column:
 
   * declared text            -> always passes. Any value, digits included, is text.
-  * native type compatible   -> passes without reading. It cannot hold a bad value.
+  * native type compatible   -> passes without reading. It cannot hold a bad value
+                                (an integer column; a NUMBER(10,0); a boolean column).
   * anything else            -> every non-null, non-blank value must coerce to the
                                 declared type, whatever the column is defined as.
+
+The result is a COUNT, like the null check's: how many rows have a value that does not fit,
+and how many do not. It never stops the other checks -- only the file / column-name /
+column-order checks do that. Files are staged as text, so every cell of a file is read here.
 
 The declared type is never judged against the column's type NAME.
 """
@@ -20,10 +25,11 @@ The declared type is never judged against the column's type NAME.
 from __future__ import annotations
 
 from trad_ct_id.type_mapping import (
+    SKIP,
     build_scan_sql,
     declared_family,
-    native_family,
-    needs_value_scan,
+    normalize_type_name,
+    plan_column,
 )
 
 
@@ -48,13 +54,15 @@ def run_datatype_scan(cur, database_type, db_schema, table_name, expected_data_t
     # Comparing them as-is made every column look wrong on Snowflake.
     actual_by_name = {str(name).lower(): (name, dtype) for name, dtype in (actual_data_types or {}).items()}
 
-    to_scan: list[tuple[str, str, str]] = []  # (column as it exists, family, declared as written)
+    # Precision and scale tell NUMBER(10,0) (whole numbers only) from NUMBER(10,2). They are
+    # only fetched when a declared integer sits on a numeric column, the one case they decide.
+    numeric_scale = _numeric_details(cur, database_type, db_schema, table_name, expected_data_types, actual_by_name)
+
+    to_scan = []  # (column as it exists, plan, native type name)
     unsupported = []
 
     for declared_column, declared_type in expected_data_types.items():
-        family = declared_family(declared_type)
-
-        if family is None:
+        if declared_family(declared_type) is None:
             unsupported.append(f'"{declared_column}" ({declared_type})')
             continue
 
@@ -64,9 +72,11 @@ def run_datatype_scan(cur, database_type, db_schema, table_name, expected_data_t
             continue
 
         actual_name, actual_type = found
+        precision, scale = numeric_scale.get(str(declared_column).lower(), (None, None))
+        plan = plan_column(declared_type, actual_type, precision, scale, database_type)
 
-        if needs_value_scan(family, native_family(actual_type, database_type)):
-            to_scan.append((actual_name, family, str(declared_type)))
+        if plan.mode != SKIP:
+            to_scan.append((actual_name, plan, actual_type))
 
     if unsupported:
         raise UnsupportedDeclaredType(
@@ -80,7 +90,7 @@ def run_datatype_scan(cur, database_type, db_schema, table_name, expected_data_t
     sql = build_scan_sql(
         db_schema,
         table_name,
-        [(name, family) for name, family, _ in to_scan],
+        [(name, plan, native) for name, plan, native in to_scan],
         database_type,
     )
 
@@ -93,15 +103,57 @@ def run_datatype_scan(cur, database_type, db_schema, table_name, expected_data_t
     issue_rows = int(values.get("any_bad") or 0)
     findings = {}
 
-    for index, (name, family, declared) in enumerate(to_scan):
+    for index, (name, plan, _native) in enumerate(to_scan):
         bad = int(values.get(f"c{index}") or 0)
 
         if bad:
             findings[name] = {
-                "declared": declared,
-                "family": family,
+                "declared": plan.declared,
+                "family": plan.family,
                 "bad": bad,
                 "sample": values.get(f"s{index}"),
             }
 
     return issue_rows, findings
+
+
+def _numeric_details(cur, database_type, db_schema, table_name, expected_data_types, actual_by_name):
+    """{column (lower): (precision, scale)} for declared integers on numeric columns."""
+    wanted = set()
+
+    for declared_column, declared_type in expected_data_types.items():
+        found = actual_by_name.get(str(declared_column).lower())
+
+        if found is None or declared_family(declared_type) != "integer":
+            continue
+
+        if normalize_type_name(found[1]) in ("numeric", "number", "decimal", "fixed"):
+            wanted.add(str(declared_column).lower())
+
+    if not wanted:
+        return {}
+
+    snowflake = (database_type or "").lower() == "snowflake"
+
+    cur.execute(
+        """
+        SELECT column_name, numeric_precision, numeric_scale
+        FROM information_schema.columns
+        WHERE table_schema = %(schema)s AND table_name = %(table)s
+        """,
+        {
+            "schema": db_schema.upper() if snowflake else db_schema,
+            "table": table_name.upper() if snowflake else table_name,
+        },
+    )
+
+    details = {}
+
+    for row in cur.fetchall():
+        row = {str(key).lower(): value for key, value in dict(row).items()}
+        name = str(row["column_name"]).lower()
+
+        if name in wanted:
+            details[name] = (row.get("numeric_precision"), row.get("numeric_scale"))
+
+    return details
