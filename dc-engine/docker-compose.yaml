@@ -31,6 +31,13 @@ services:
     # tasks, which here means arbitrary SQL against your databases.
     expose:
       - "6379"
+    # The queue, the run results and the idempotency claims all live here, so it must survive a
+    # restart. Append-only logging writes every change and syncs once a second: a crash or restart
+    # loses at most about a second of queued runs (the defaults could lose minutes), and the named
+    # volume keeps the data across `docker compose down` and up. A snapshot is kept as well.
+    command: redis-server --appendonly yes --appendfsync everysec --save 300 1
+    volumes:
+      - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -44,6 +51,11 @@ services:
     # lines, which buries the task-timing lines you actually read during a load
     # test. Container state still reflects health; only the per-request line goes.
     command: uvicorn service.api:api --host 0.0.0.0 --port 8000 --no-access-log
+    # So the API can announce its startup to a backend running on the host (BACKEND_URL in .env,
+    # for example http://host.docker.internal:3000). Docker Desktop already provides this name;
+    # on Linux this line is what makes it resolve.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       # Bound to localhost only: the backend is the sole legitimate caller, and
       # this endpoint runs SQL against your DBs with no authn of its own.
@@ -75,3 +87,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+volumes:
+  redis-data:
