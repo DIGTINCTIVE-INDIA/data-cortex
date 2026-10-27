@@ -142,6 +142,25 @@ def load_csv_snowflake(
     target_cur.execute(f"REMOVE @{stage_name}/{file_name}")
 
 
+def drop_err_table(target_cur, target_schema, err_table_name, target_database_type):
+    """
+    Remove the CURRENT-run failure table so the run rebuilds it from scratch.
+
+    `<prefix>_err` holds the failures of the latest run only; `<prefix>_err_hist` is the
+    one that accumulates. A run with no failures used to leave the previous run's rows in
+    `_err` (nothing was written, so nothing replaced them), and the custom-check path
+    appended to it run after run. The table is recreated by the load that follows when
+    there is something to write, and simply absent when there is not.
+    """
+    database_type = (target_database_type or "").lower()
+    dialect = "snowflake" if database_type == "snowflake" else "postgresql"
+
+    schema_q = quote_identifier(target_schema, dialect)
+    table_q = quote_identifier(err_table_name, dialect)
+
+    target_cur.execute(f"DROP TABLE IF EXISTS {schema_q}.{table_q}")
+
+
 def bulk_insert_invalid_rows_from_csv(
     target_cur,
     local_file_path,

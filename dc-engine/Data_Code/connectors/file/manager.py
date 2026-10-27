@@ -659,7 +659,9 @@ class FileConnectionManager:
 
         if extension in ['.xls', '.xlsx']:
             try:
-                excel_data = pd.read_excel(io.BytesIO(file_content), sheet_name=None)
+                # dtype=object keeps each cell as the type it has in the sheet. Without it a column
+                # holding a blank is read as floats, so the whole number 99 arrives as 99.0.
+                excel_data = pd.read_excel(io.BytesIO(file_content), sheet_name=None, dtype=object)
             except Exception as e:
                 raise DataCodeFileParseError(f'Unable to parse excel file {file_name}: {e}') from e
             if len(excel_data) != 1:
@@ -909,7 +911,11 @@ class FileConnectionManager:
                 values = []
                 for col_name in col_names:
                     val = row.get(col_name)
-                    if val is None or val == '':
+                    # Spreadsheets give an empty cell as NaN/NaT, which is not None and would
+                    # otherwise be staged as the text "nan" and judged as a bad value.
+                    if val is None or val == '' or (
+                        not isinstance(val, (str, bool, list, dict, tuple)) and pd.isna(val)
+                    ):
                         values.append(None)
                     elif isinstance(val, str) and val.strip().lower() == 'null':
                         values.append(None)

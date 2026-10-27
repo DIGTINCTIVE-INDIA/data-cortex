@@ -43,7 +43,7 @@ cd frontend && pnpm install && cd ..
 # 2. database: create the tables, then seed the check types, categories and the first admin
 cd backend
 pnpm db:push
-pnpm db:init          # asks for the first admin's email and name
+pnpm db:init          # asks how many administrators (1-5), then each one's email and name
 
 # 3. the engine (its own folder)
 cd ../dc-engine

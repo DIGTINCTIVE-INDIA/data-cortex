@@ -212,6 +212,12 @@ class Results(Base):
     criticality = Column(RESULTS_CRITICALITY_ENUM, nullable=True)
     issue_rows = Column(String, nullable=False)
     passed_rows = Column(String, nullable=False)
+    # Run-level row picture, the same on every result row of a config in one run: how many rows
+    # the table (or the custom check's source) had, and how many different rows failed at least
+    # one check. NULL when the rows were never evaluated (a gate check stopped the config, or the
+    # check errored) and on results written before these columns existed.
+    rows_total = Column(Integer, nullable=True)
+    rows_failed = Column(Integer, nullable=True)
     failure_reason = Column(String, nullable=True)
     issue_status = Column(ISSUE_STATUS_ENUM, nullable=True, server_default="open")
     # Set by a person in QC Alerts, never by the engine. Distinct from
@@ -269,7 +275,8 @@ class TraditionalConfigDetails(Base):
     null_check_criticality = Column(CHECK_CRITICALITY_ENUM, nullable=True)
 
     length_check = Column(Boolean, nullable=False, default=False, server_default=text("false"))
-    expected_length = Column(Integer, nullable=True)
+    min_length = Column(Integer, nullable=True)
+    max_length = Column(Integer, nullable=True)
     length_check_criticality = Column(CHECK_CRITICALITY_ENUM, nullable=True)
 
     format_check = Column(Boolean, nullable=False, default=False, server_default=text("false"))

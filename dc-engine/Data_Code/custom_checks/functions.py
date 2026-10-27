@@ -32,7 +32,7 @@ from trad_ct_id.cursor_factory import get_cursor
 from trad_ct_id.value_converter import quote_identifier
 from trad_ct_id.table_processors import create_landing_table
 from trad_ct_id.loaders.file_copy_loader import export_rows_to_csv
-from trad_ct_id.invalid_table_loader import load_csv_postgresql, load_csv_snowflake
+from trad_ct_id.invalid_table_loader import load_csv_postgresql, load_csv_snowflake, drop_err_table
 
 # -----------------------------------------------------------------------------
 # Template Management Functions
@@ -1586,6 +1586,7 @@ def run_custom_checks_from_execution_df(
         resolved_by_table: Dict[str, _ResolvedIdentifier] = {}
         landing_done_for_prefix = set()
  
+        err_reset_for_table = set()
         try:
             for row in rows:
                 check_id = row['check_id']
@@ -1739,6 +1740,12 @@ def run_custom_checks_from_execution_df(
                         "_job_id": job_id,
                         "_job_timestamp": job_timestamp_str,
                     }
+                    # `_err` is the current run's failures: rebuilt from scratch, once per run
+                    # per table (checks sharing a prefix share the table). `_err_hist` accumulates.
+                    if invalid_table not in err_reset_for_table:
+                        drop_err_table(target_cur, target_schema, invalid_table, target_database_type)
+                        err_reset_for_table.add(invalid_table)
+
                     invalid_n = _stream_outcome_to_target(
                         source_cur, target_cur,
                         source_schema, physical_table_name, source_database_type,
@@ -2129,6 +2136,8 @@ def save_results_to_rds(
             issue_rows,
             failure_reason,
             passed_rows,
+            rows_total,
+            rows_failed,
             user_id
         ) VALUES (
             :job_id,
@@ -2152,6 +2161,8 @@ def save_results_to_rds(
             :issue_rows,
             :failure_reason,
             :passed_rows,
+            :rows_total,
+            :rows_failed,
             :user_id
         )
         """
@@ -2227,6 +2238,11 @@ def save_results_to_rds(
                     "issue_rows": res.get("issue_rows"),
                     "failure_reason": failure_reason,
                     "passed_rows": res.get("passed_rows"),
+                    # A custom check is one check, and its rows are the rows its query returned
+                    # out of the table's total -- the same two numbers a traditional run reports.
+                    # A check that errored evaluated no rows, so it reports none.
+                    "rows_total": None if check_status == "error" else res.get("source_total_rows"),
+                    "rows_failed": None if check_status == "error" else res.get("issue_rows"),
                     "impacted_downstream": res.get("impacted_downstream"),
                     "check_execution_id": res.get("check_execution_id"),
                     "issue_status": res.get("issue_status"),

@@ -8,12 +8,17 @@ validation_logs) and database.py caches a module-global _engine/_Session, so two
 runs sharing a process would cross-contaminate job ids, logs and user
 attribution. Hence prefork (process per run), never a thread/gevent pool.
 """
+import logging
 import os
+import traceback
 from datetime import datetime, timezone
 
 from celery.signals import worker_process_init
 
+from Data_Code.common.failure_text import explain_failure
 from service.celery_app import app
+
+log = logging.getLogger("dc_engine.tasks")
 
 # Imported at MODULE level on purpose, despite costing ~160MB. Celery's prefork
 # parent imports this once and then forks, so every child inherits the loaded
@@ -45,12 +50,26 @@ def _dispose_inherited_connections(**_kwargs):
         pass
 
 
+class RunFailed(Exception):
+    """
+    A run that failed for a reason the engine UNDERSTANDS: a client problem (table not found, wrong
+    password, no checks ticked) or a service problem (the database is briefly unavailable).
+
+    It is raised in place of the original exception, carrying its type and message
+    ("ValueError: No field rules ..."), so the Jobs page still shows the same title and reason. The
+    task lists it in `throws`, which tells Celery this is an expected outcome: it is logged as one
+    line instead of an ERROR with a stack trace, and the log keeps its real errors for real bugs.
+    The original exception and traceback stay attached (`__cause__`), so nothing is lost.
+    """
+
+
 @app.task(
     name="dc.run_check",
     bind=True,
     acks_late=True,                 # a run lost to a worker crash is redelivered
     reject_on_worker_lost=True,
     max_retries=0,                  # checks are not idempotent -- never auto-retry
+    throws=(RunFailed,),
 )
 def run_check(self, payload):
     """
@@ -72,7 +91,21 @@ def run_check(self, payload):
     # knows them. The product used to infer them from result-row timestamps, which are
     # the job's start time rather than when it finished, so durations were guesses.
     started_at = datetime.now(timezone.utc)
-    status = dc_engine.run_dc_engine(payload, run_id=self.request.id)
+
+    try:
+        status = dc_engine.run_dc_engine(payload, run_id=self.request.id)
+    except Exception as exc:  # noqa: BLE001 -- every failure is classified below
+        info = explain_failure(exc, traceback.format_exc())
+
+        if info["business"] and info["kind"] != "server":
+            # Client or service problem: an expected outcome, named. One log line, no stack trace.
+            log.warning("RUN FAILED [%s] %s: %s (run %s)", info["kind"], info["title"], info["reason"], self.request.id)
+            raise RunFailed(f"{type(exc).__name__}: {exc}") from exc
+
+        # The engine's own fault, or no known cause: keep the full error and traceback in the log.
+        log.error("RUN FAILED [%s] %s (run %s)", info["kind"], info["title"], self.request.id, exc_info=True)
+        raise
+
     return {
         "status": status,
         "task_id": self.request.id,

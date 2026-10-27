@@ -12,3 +12,8 @@ azure-storage-blob
 azure-identity
 paramiko
 orjson
+
+# pandas.read_excel needs an engine per format; neither was installed, so every Excel file
+# failed to parse in the container (.xlsx by openpyxl, legacy .xls by xlrd).
+openpyxl>=3.1,<4
+xlrd>=2.0.1

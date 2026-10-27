@@ -25,7 +25,7 @@ from trad_ct_id.value_converter import (
 from trad_ct_id.source_reader import get_source_column_types
 from trad_ct_id.sql_executor import run_tc_checks
 from trad_ct_id.table_processors import create_landing_table, create_valid_table
-from trad_ct_id.invalid_table_loader import bulk_insert_invalid_rows_from_csv
+from trad_ct_id.invalid_table_loader import bulk_insert_invalid_rows_from_csv, drop_err_table
 from trad_ct_id.job_status_utils import compute_job_status
 from trad_ct_id.system_logger import SystemLogger
 from Data_Code.common.safe_cleanup import safe_close
@@ -382,6 +382,7 @@ class ChecksExecutor:
                     executed_checks = set()
                     all_failed_row_ids = set()
                     check_results = {}
+                    config_results_from = len(self.job_results)
 
                     # For each row in config rows
                     for row in config_rows:
@@ -656,6 +657,16 @@ class ChecksExecutor:
                                     "check_status": result_dict["check_status"],
                                 },
                             )
+
+                    # The run-level row picture, stamped on every result of this config so the Jobs
+                    # page can show "checks" and "rows" as two separate things: how many rows the
+                    # table had, and how many DIFFERENT rows failed at least one check (a row that
+                    # fails three checks is still one row). A config stopped by a gate check never
+                    # evaluated its rows, so it reports none rather than a misleading zero.
+                    config_evaluated = config_id not in aborted_configs
+                    for config_result in self.job_results[config_results_from:]:
+                        config_result["rows_total"] = int(total_rows) if config_evaluated else None
+                        config_result["rows_failed"] = len(all_failed_row_ids) if config_evaluated else None
 
                     self.logger.log_system(
                         code="CONFIG_COMPLETED", severity="INFO",
@@ -993,6 +1004,22 @@ class ChecksExecutor:
                                             "error": str(e)
                                         }
                                     )
+
+
+                    else:
+                        # Nothing failed this run, so `_err` must not keep the last run's rows.
+                        # (`_err_hist` is the table that accumulates; it is left alone.)
+                        try:
+                            drop_err_table(
+                                target_cur, target_schema, f"{target_table_prefix}_err",
+                                target_database_type,
+                            )
+                        except Exception as e:
+                            self.logger.log_system(
+                                code="ERR_TABLE_RESET_FAILED", severity="WARNING",
+                                message="Could not clear the previous run's failure table",
+                                context={"table": target_table_prefix, "error": str(e)}
+                            )
 
                 finally:
 

@@ -1375,7 +1375,10 @@ class TcJSONConfigValidator:
                     row["criticality"] = row.get("format_check_criticality", "")
                 
                 elif check == "length_check":
-                    row["detail1"] = str(int(row.get("expected_length"))) if pd.notna(row.get("expected_length")) else ""
+                    # "5" for an exact length; "5-10" when a maximum is also set (both included).
+                    low = str(int(row.get("min_length"))) if pd.notna(row.get("min_length")) else ""
+                    high = row.get("max_length")
+                    row["detail1"] = f"{low}-{int(high)}" if low and high is not None and pd.notna(high) and int(high) != int(low) else low
                     row["criticality"] = row.get("length_check_criticality", "")
                 
                 return row

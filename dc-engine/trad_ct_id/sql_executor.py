@@ -350,6 +350,16 @@ def execute_tc_checks(
             ri_connection_id = detail1
             parent_schema    = metadata_map[ri_connection_id]["db_schema"]
 
+            # The reference table may be saved as "schema.table" (there is no separate schema
+            # column); the schema then overrides the connection's own. Without a dot the
+            # connection's schema is used, as before.
+            parent_table_name = detail2
+            if detail2 and "." in detail2:
+                schema_part, _, table_part = detail2.partition(".")
+                if schema_part.strip() and table_part.strip():
+                    parent_schema = schema_part.strip().strip('"')
+                    parent_table_name = table_part.strip().strip('"')
+
             if ri_parent is not None:
                 # The parent lives on a different connection, so it does not exist on
                 # this cursor and a join cannot reach it. The parent's distinct values are
@@ -358,7 +368,7 @@ def execute_tc_checks(
                 # either database.
                 cross_rows = find_orphans_across_connections(
                     cur, db_schema, table_name, field, database_type, row_identifier_column,
-                    ri_parent["cursor"], ri_parent["database_type"], parent_schema, detail2, detail3,
+                    ri_parent["cursor"], ri_parent["database_type"], parent_schema, parent_table_name, detail3,
                 )
                 query = None
             else:
@@ -367,7 +377,7 @@ def execute_tc_checks(
                 child_table=quote_identifier(table_name, database_type),
                 child_column=quote_identifier(field, database_type),
                 parent_schema=quote_identifier(parent_schema, database_type),
-                    parent_table=quote_identifier(detail2, database_type),
+                    parent_table=quote_identifier(parent_table_name, database_type),
                     parent_column=quote_identifier(detail3, database_type),
                     row_identifier_column=quote_identifier(
                         row_identifier_column, database_type
@@ -494,8 +504,10 @@ def execute_tc_checks(
                 
         elif check_mapping_name == "length_check":
 
-            # Convert expected length from string to integer for SQL
-            params = {"expected_length": int(detail1)}
+            # detail1 is "5" (exactly 5) or "5-10" (from 5 to 10, both included). An exact length
+            # is a range whose two ends are the same, so one query serves both.
+            low, _, high = str(detail1).partition("-")
+            params = {"min_length": int(low), "max_length": int(high) if high.strip() else int(low)}
 
             query  = template.format(
                 schema=quote_identifier(db_schema, database_type),

@@ -27,7 +27,7 @@ TC_SQL_TEMP = {
                 LENGTH({column}::TEXT) AS actual_length
             FROM {schema}.{table}
             WHERE {column} IS NULL
-               OR LENGTH({column}::TEXT) <> %(expected_length)s
+               OR LENGTH({column}::TEXT) NOT BETWEEN %(min_length)s AND %(max_length)s
         """,
 
         "snowflake": """
@@ -36,7 +36,7 @@ TC_SQL_TEMP = {
                 LENGTH({column}::TEXT) AS actual_length
             FROM {schema}.{table}
             WHERE {column} IS NULL
-               OR LENGTH({column}::TEXT) <> %(expected_length)s
+               OR LENGTH({column}::TEXT) NOT BETWEEN %(min_length)s AND %(max_length)s
         """
     },
 

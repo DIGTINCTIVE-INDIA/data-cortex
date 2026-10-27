@@ -53,3 +53,9 @@ backend/api-tests/service-key.txt
 
 # service API keys written by the api-test setup
 service-key*.txt
+
+# local engine test suite (click-to-run, fixtures and reports stay on this machine)
+engine-test-suite/
+
+# editor workspace file
+*.code-workspace

@@ -22,10 +22,18 @@ import redis
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel, Field
 
-from Data_Code.common.failure_text import readable_failure
+from Data_Code.common.failure_text import explain_failure, readable_failure
+from service.announce import start_announcing
 from service.celery_app import app as celery_app
 
 api = FastAPI(title="dc-engine", version="2.0.0")
+
+
+@api.on_event("startup")
+def _announce_startup():
+    # Tell the backend the engine is up, so runs it held while we were down are sent now. In its
+    # own thread and never raises: the backend being down must not stop the engine starting.
+    start_announcing()
 
 # uvicorn's access log is off (the healthcheck alone was ~14% of all log lines).
 # This logs the events worth seeing instead -- one line per enqueue, carrying the
@@ -130,6 +138,15 @@ class RunRequest(BaseModel):
         description=(
             "Stable across retries of ONE attempt, different for a new attempt. "
             "Airflow should pass its dag_run_id. Omitted = no replay protection."
+        ),
+    )
+    run_id: Optional[str] = Field(
+        None,
+        description=(
+            "A UUID chosen by the caller. The backend sets it when it holds a run while the "
+            "engine is unreachable, so the run keeps ONE id from the click to the result; "
+            "sending the same run_id again returns the existing run instead of starting a second. "
+            "Omitted = the engine picks one."
         ),
     )
     priority: int = Field(
@@ -237,7 +254,13 @@ def submit_run(req: RunRequest, response: Response):
         check_item = {"check_type": check_type, "config_id": config_id, "checklist": "default"}
     payload = [{"user_id": req.user_id}, check_item]
 
-    run_id = str(uuid.uuid4())
+    if req.run_id:
+        try:
+            run_id = str(uuid.UUID(req.run_id))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="run_id must be a UUID")
+    else:
+        run_id = str(uuid.uuid4())
     key = ("idem:" + req.user_id + ":" + req.idempotency_key) if req.idempotency_key else None
     req_hash = _request_hash(config_id, req.user_id)
 
@@ -337,6 +360,28 @@ def submit_run(req: RunRequest, response: Response):
                         submitted_at=time.time(),
                     )
 
+    # A caller-chosen run_id is claimed once, so a retry of the same hand-over (the backend
+    # re-sending a held run, or sending it twice after a crash) returns the run that exists
+    # instead of starting a second one.
+    owns_run_id = False
+
+    if req.run_id:
+        try:
+            owns_run_id = bool(_redis.set("run:" + run_id, "1", nx=True, ex=7 * 24 * 3600))
+        except redis.RedisError as exc:
+            log.error("run id store unreachable: %s", exc)
+            raise HTTPException(status_code=503, detail="run id store unavailable: " + type(exc).__name__)
+
+        if not owns_run_id:
+            log.info("REPLAY run_id=%s (already accepted)", run_id)
+            response.status_code = 200
+            return RunAccepted(
+                run_id=run_id,
+                state=celery_app.AsyncResult(run_id).state,
+                duplicate=True,
+                submitted_at=time.time(),
+            )
+
     try:
         celery_app.send_task(
             "dc.run_check",
@@ -345,6 +390,11 @@ def submit_run(req: RunRequest, response: Response):
             priority=_to_broker_priority(req.priority),
         )
     except Exception as exc:
+        if owns_run_id:
+            try:
+                _redis.delete("run:" + run_id)
+            except redis.RedisError:
+                log.warning("could not release run id %s", run_id)
         # Release the claim so the caller's retry is not permanently answered
         # with a run_id for a task that was never enqueued. Guarded by
         # owns_claim: on the expired-claim path above another request may now
@@ -385,9 +435,16 @@ def get_run(run_id: str):
     if res.successful():
         body["result"] = res.result
     elif res.failed():
-        # Read by people in the Jobs page, so it goes through the same mapper as result
-        # rows. The raw exception stays in the worker log and system_logs.
-        body["error"] = readable_failure(res.result)
+        # Read by people in the Jobs page. A short title and a plain reason for the business
+        # reader, and the raw exception plus traceback for the developer (capped, so one huge
+        # error cannot bloat the record). The same detail also stays in the worker log.
+        info = explain_failure(res.result, res.traceback or "")
+        body["error"] = info["reason"]
+        body["error_title"] = info["title"]
+        # client = the person can fix it, service = a dependency is unavailable (try again),
+        # server = the engine is at fault or the cause is unknown.
+        body["error_kind"] = info["kind"]
+        body["error_detail"] = info["detail"][:20000]
         # A failed task has no result payload, but Celery still records when it ended.
         if res.date_done:
             body["finished_at"] = res.date_done.isoformat()

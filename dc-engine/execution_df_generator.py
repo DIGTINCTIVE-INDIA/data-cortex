@@ -148,6 +148,39 @@ class GenerateExecutionDF:
                 raise ValueError(message)
             print(f"WARNING: {message}")
 
+        # A config can have field rules (the column list) and still have no check ticked on any
+        # of them. The validator then finds nothing to map, returns "invalid" without a word, and
+        # the run used to fail as a bug in the engine. It is a plain configuration gap: say so.
+        if not traditional_config_details_df.empty:
+            check_columns = [c for c in traditional_config_details_df.columns if c.endswith("_check")]
+            configs_without_checks = [
+                config_id
+                for config_id in requested_config_ids
+                if rules_per_config.get(config_id, 0) > 0
+                and not traditional_config_details_df.loc[
+                    traditional_config_details_df["config_id"] == config_id, check_columns
+                ]
+                .fillna(False)
+                .astype(bool)
+                .to_numpy()
+                .any()
+            ]
+
+            if configs_without_checks:
+                message = (
+                    f"No checks are enabled for: {configs_without_checks}. Its field rules list the "
+                    "columns but none of them has a check ticked, so there is nothing to run."
+                )
+                log_system(
+                    code="CONFIG_NO_CHECKS_ENABLED",
+                    severity="ERROR" if len(configs_without_checks) == len(requested_config_ids) else "WARNING",
+                    message=message,
+                    context={"step": "generate_execution_df", "config_ids": configs_without_checks},
+                )
+                if len(configs_without_checks) == len(requested_config_ids):
+                    raise ValueError(message)
+                print(f"WARNING: {message}")
+
         # Initialize the validator
         validator = TcJSONConfigValidator(
             config_json=config_json,
@@ -184,7 +217,7 @@ class GenerateExecutionDF:
                     "Every requested config has field rules, so the rules themselves were "
                     "rejected during validation -- most often a check_mapping_name that "
                     "matches no row in traditional_checks_library_rev, or a rule missing a "
-                    "value the check requires (such as expected_length for a length check). "
+                    "value the check requires (such as min_length for a length check). "
                     + (
                         f"Validator reported {len(validation_messages)} problem(s): "
                         f"{validation_messages}"

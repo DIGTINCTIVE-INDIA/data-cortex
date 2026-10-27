@@ -94,7 +94,9 @@ def build_failure_message(
         )
 
     elif check_mapping_name == "length_check":
-        return f"Length of {detail1} was expected, but {issue_rows} rows were found with mismatched values"
+        low, _, high = str(detail1).partition("-")
+        wanted = f"Length between {low} and {high}" if high.strip() else f"Length of {detail1}"
+        return f"{wanted} was expected, but {issue_rows} rows were found with mismatched values"
 
     elif check_mapping_name == "format_check":
         return f"{issue_rows} rows do not match the expected format {detail1}"
