@@ -42,7 +42,7 @@ export class QCConfDBController {
 			throw new ErrorResponse("configId missing", 400);
 		}
 
-		const columns = await registry.qcDBConfigRepo.listDbConfigColumns(configId);
+		const columns = await registry.qcDBConfigRepo.listDbConfigColumns(configId, req.user.role === "analyst");
 
 		return res.json(jsonResponse("query", { data: { columns } }));
 	});
@@ -88,7 +88,7 @@ export class QCConfDBController {
 	static listDBCheckConfigs = catchAsync(async (req, res) => {
 		const query = await validate(paginationValidator, req.query);
 
-		const data = await registry.qcDBConfigRepo.listDbConfigs(query);
+		const data = await registry.qcDBConfigRepo.listDbConfigs(query, req.user.role === "analyst");
 
 		return res.json(
 			jsonResponse("paginated", {

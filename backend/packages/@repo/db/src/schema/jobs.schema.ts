@@ -1,4 +1,4 @@
-import { index, pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import { index, integer, pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
 
 import { serviceApiKeys } from "./service-keys.schema.js";
 import { usersTable } from "./user.schema.js";
@@ -41,8 +41,20 @@ export const checkRuns = pgTable(
 		// a key must not remove the history of what it did.
 		apiKeyId: uuid("api_key_id").references(() => serviceApiKeys.id, { onDelete: "set null" }),
 
-		// queued | running | completed | failed
+		// held | dispatching | queued | running | completed | failed
+		//
+		// held / dispatching exist only while the engine could not take the run: the backend keeps
+		// the run here (with a run id of its own choosing) and hands it over when the engine is
+		// reachable again. dispatching is the short claim while one hand-over is in flight; the
+		// API reports both as "held".
 		status: varchar("status", { length: 20 }).notNull().default("queued"),
+
+		// For a held run: the idempotency key the click carried, so a double click while the
+		// engine is down is one held run, not two. How many hand-overs were tried, and why the
+		// last one did not go through, so "waiting for the engine" can say what it is waiting for.
+		idempotencyKey: text("idempotency_key"),
+		dispatchAttempts: integer("dispatch_attempts").notNull().default(0),
+		lastDispatchError: text("last_dispatch_error"),
 
 		// The engine's own word for it (PENDING, STARTED, SUCCESS, FAILURE...), kept so a
 		// stuck run can be diagnosed without re-deriving how `status` was mapped.
@@ -53,6 +65,10 @@ export const checkRuns = pgTable(
 
 		// Why the job itself failed (an exception), not why a check did.
 		error: text("error"),
+		// The same failure in two more forms: a short plain title for the business reader, and the
+		// raw exception plus traceback for the developer. `error` above is the plain reason.
+		errorTitle: text("error_title"),
+		errorDetail: text("error_detail"),
 
 		submittedAt: timestamp("submitted_at").defaultNow().notNull(),
 		startedAt: timestamp("started_at"),

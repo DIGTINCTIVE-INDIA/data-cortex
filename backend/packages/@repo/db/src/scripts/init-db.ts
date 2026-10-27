@@ -26,8 +26,10 @@ const describeTarget = () => {
 	}
 };
 
-const roles = ["admin", "engineer", "analyst"] as const;
-type UserRole = (typeof roles)[number];
+// Only administrators can be created while an empty database is initialised: an engineer or
+// analyst can only be added by an admin from inside the app, so offering those roles here
+// would create users nobody could have created afterwards.
+const MAX_INITIAL_ADMINS = 5;
 
 const rl = createInterface({ input, output });
 
@@ -41,20 +43,18 @@ const askRequired = async (question: string) => {
 	return value;
 };
 
-const askRole = async (): Promise<UserRole> => {
-	console.log("\nSelect role:");
-	roles.forEach((role, index) => {
-		console.log(`${index + 1}. ${role}`);
-	});
+/** At least one administrator is mandatory; the person running the init decides how many, up to the limit. */
+const askAdminCount = async () => {
+	while (true) {
+		const answer = (await rl.question(`How many administrators do you want to create (1-${MAX_INITIAL_ADMINS})? `)).trim();
+		const count = Number(answer);
 
-	const answer = (await rl.question("\nEnter role number: ")).trim();
-	const selectedRole = roles[Number(answer) - 1];
+		if (Number.isInteger(count) && count >= 1 && count <= MAX_INITIAL_ADMINS) {
+			return count;
+		}
 
-	if (!selectedRole) {
-		throw new Error("Invalid role selected");
+		console.log(`Enter a whole number from 1 to ${MAX_INITIAL_ADMINS}. At least one administrator is required.`);
 	}
-
-	return selectedRole;
 };
 
 const validateEmail = (email: string) => {
@@ -241,25 +241,34 @@ const initDb = async () => {
 
 	step(2, 3, "First-time admin setup");
 	log("No users found — this database has not been initialised before.");
-	log("You will be asked for the first administrator's details.");
+	log("Only administrators can be created here. Engineers and analysts are added by an admin from inside the app.");
 	console.log("");
 
-	const email = await askRequired("Email: ");
-	validateEmail(email);
+	const adminCount = await askAdminCount();
+	const admins: { email: string; fullName: string }[] = [];
 
-	const fullName = await askRequired("Full name: ");
-	const role = await askRole();
+	// Everything is collected and checked before anything is written, so a mistake while typing
+	// the fourth administrator cannot leave a half-initialised database.
+	for (let n = 1; n <= adminCount; n++) {
+		console.log(`\nAdministrator ${n} of ${adminCount}`);
+
+		const email = await askRequired("Email: ");
+		validateEmail(email);
+
+		if (admins.some(admin => admin.email.toLowerCase() === email.toLowerCase())) {
+			throw new Error(`${email} was already entered`);
+		}
+
+		const fullName = await askRequired("Full name: ");
+		admins.push({ email, fullName });
+	}
 
 	console.log("");
-	log(`Creating first user: ${email} (${role})...`);
+	log(`Creating ${admins.length} administrator(s)...`);
 
-	const [createdUser] = await db
+	const createdUsers = await db
 		.insert(usersTable)
-		.values({
-			email,
-			fullName,
-			role,
-		})
+		.values(admins.map(admin => ({ ...admin, role: "admin" as const })))
 		.returning({
 			id: usersTable.id,
 			email: usersTable.email,
@@ -267,16 +276,17 @@ const initDb = async () => {
 			role: usersTable.role,
 		});
 
-	log("First user created successfully:");
-	console.log(createdUser);
+	log("Administrator(s) created successfully:");
+	console.log(createdUsers);
 
 	step(3, 3, "Seeding reference data");
 	await seedTraditionalChecks();
 
-	await seedQcTags(createdUser.id);
+	// Reference data is attributed to the first administrator entered.
+	await seedQcTags(createdUsers[0].id);
 
 	console.log("");
-	log(`Done in ${elapsed()}. Admin ${createdUser.email} created and reference data seeded.`);
+	log(`Done in ${elapsed()}. ${createdUsers.length} admin(s) created (${createdUsers.map(user => user.email).join(", ")}) and reference data seeded.`);
 };
 
 initDb()

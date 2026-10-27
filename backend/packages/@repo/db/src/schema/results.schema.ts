@@ -106,6 +106,11 @@ export const results = pgTable("results", {
 	criticality: resultsCriticality("criticality"),
 	issueRows: varchar("issue_rows").notNull(),
 	passedRows: varchar("passed_rows").notNull(),
+	// Run-level row picture (same on every result of a config in one run): the rows the table had,
+	// and how many DIFFERENT rows failed at least one check. Null when rows were never evaluated
+	// and on results written before these columns existed.
+	rowsTotal: integer("rows_total"),
+	rowsFailed: integer("rows_failed"),
 	failureReason: varchar("failure_reason"),
 	issueStatus: issueStatusEnum("issue_status").default("open"), // ENUM :- open , resolved , discarded
 

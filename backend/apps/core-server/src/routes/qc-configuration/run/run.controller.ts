@@ -1,161 +1,29 @@
 import { registry } from "@/container.js";
 import {
-	customBusinessChecksConfig,
-	databaseConnection,
-	db,
-	dbBasedChecksConfig,
-	eq,
-	fileBasedChecksConfig,
-	fileConnection,
-	inArray,
-	traditionalConfigDetails,
-} from "@repo/db";
+	configVersion,
+	EngineRejectedError,
+	EngineUnavailableError,
+	submitToEngine,
+	type EngineRunAccepted,
+} from "@/services/engine-client.js";
+import { engineState } from "@/services/engine-state.js";
+import { customBusinessChecksConfig, db, dbBasedChecksConfig, eq, fileBasedChecksConfig } from "@repo/db";
 import { jsonResponse, validate } from "@repo/lib";
 import { catchAsync, ErrorResponse } from "@repo/lib/error-handlers-module";
 import { logger } from "@repo/logger";
-import { createHash } from "node:crypto";
+import { randomUUID } from "node:crypto";
 
 import { runCheckValidator } from "./run.validator.js";
 
-type EngineRunRequest = {
-	config_id: string;
-	user_id: string;
-	idempotency_key?: string;
-
-	/**
-	 * False means "nobody has asked to be emailed about anything", so the engine can
-	 * skip the failure callback entirely and save the round trip. It is deliberately
-	 * coarse: the precise answer needs the config row, and every dispatch would then
-	 * pay a SELECT to save a callback on the rarer failure path.
-	 */
-	notify: boolean;
-};
-
-type EngineRunAccepted = {
-	run_id: string;
-	state: string;
-	submitted_at: number;
-	duplicate?: boolean;
-};
-
-/**
- * Default engine address.
- *
- * 127.0.0.1 rather than localhost on purpose: dc-engine binds IPv4 only, while
- * "localhost" resolves to ::1 first on Windows, which fails with ECONNREFUSED on
- * the IPv6 address before anything reaches the engine.
- */
-const DEFAULT_ENGINE_URL = "http://127.0.0.1:8000";
-
-/**
- * Hands the run to dc-engine over HTTP. dc-engine is the only runner.
- *
- * The engine queues the run on Celery and answers in milliseconds with a run id --
- * it does not wait for the check to finish. A 202 here means "accepted", never
- * "passed". Callers poll `GET /v1/runs/{run_id}` on the engine for the outcome.
- *
- * There is deliberately no local fallback: the backend no longer spawns
- * subprocesses. If the engine cannot take the run, the request fails and the caller
- * is told why -- better than silently running somewhere else and reporting success.
- *
- * DC_ENGINE_URL is read here rather than at module load, so a deployment that has
- * not set it still boots and serves every other route; only this endpoint fails.
- */
-async function submitToEngine(payload: EngineRunRequest): Promise<EngineRunAccepted> {
-	const engineUrl = process.env.DC_ENGINE_URL ?? DEFAULT_ENGINE_URL;
-	const endpoint = `${engineUrl}/v1/runs`;
-
-	let response: Response;
-
-	try {
-		response = await fetch(endpoint, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(payload),
-			signal: AbortSignal.timeout(5000),
-		});
-	} catch (error) {
-		// Covers connection refused, DNS failure and the 5s timeout above.
-		logger.error("Check engine could not be reached -- the check was NOT started", { endpoint, error });
-		throw new ErrorResponse("The check engine is unreachable. The check was not started.", 503);
-	}
-
-	if (!response.ok) {
-		const body = await response.text().catch(() => "");
-		logger.error(`Check engine rejected the run (HTTP ${response.status}) -- the check was NOT started`, {
-			endpoint,
-			body,
-		});
-
-		switch (response.status) {
-			case 404:
-				throw new ErrorResponse("The check engine has no run endpoint at this address. The check was not started.", 502);
-
-			case 422:
-				throw new ErrorResponse("The check engine rejected the run payload. The check was not started.", 502);
-
-			default:
-				throw new ErrorResponse(
-					`The check engine rejected the run (HTTP ${response.status}). The check was not started.`,
-					502,
-				);
-		}
-	}
-
-	const accepted = (await response.json().catch(() => null)) as EngineRunAccepted | null;
-
-	if (!accepted?.run_id) {
-		logger.error("Check engine accepted the run but returned no run_id", { endpoint, accepted });
-		throw new ErrorResponse("The check engine did not return a run id. The run may or may not have started.", 502);
-	}
-
-	return accepted;
-}
-
-/**
- * A fingerprint of everything a run depends on: the check's configuration, its field
- * rules, and the source and target connections (credentials included, so a changed
- * password counts). It goes into the idempotency key, so a repeated key stops meaning
- * "the same run" the moment the check or anything it uses is edited -- otherwise a retry
- * after fixing a bad path or connection would be answered with the failed run it was
- * meant to replace.
- *
- * Content, not timestamps: not every edit path bumps `updated_at`.
- */
-async function configVersion(configId: string): Promise<string> {
+/** Whether the check is switched on. An analyst is not shown a switched-off check, so they may not start one either. */
+async function configIsEnabled(configId: string): Promise<boolean> {
 	const [config] = configId.startsWith("FBC")
-		? await db.select().from(fileBasedChecksConfig).where(eq(fileBasedChecksConfig.configId, configId)).limit(1)
+		? await db.select({ enabled: fileBasedChecksConfig.enabled }).from(fileBasedChecksConfig).where(eq(fileBasedChecksConfig.configId, configId)).limit(1)
 		: configId.startsWith("CB")
-			? await db.select().from(customBusinessChecksConfig).where(eq(customBusinessChecksConfig.checkId, configId)).limit(1)
-			: await db.select().from(dbBasedChecksConfig).where(eq(dbBasedChecksConfig.configId, configId)).limit(1);
+			? await db.select({ enabled: customBusinessChecksConfig.enabled }).from(customBusinessChecksConfig).where(eq(customBusinessChecksConfig.checkId, configId)).limit(1)
+			: await db.select({ enabled: dbBasedChecksConfig.enabled }).from(dbBasedChecksConfig).where(eq(dbBasedChecksConfig.configId, configId)).limit(1);
 
-	if (!config) return "none";
-
-	const connectionIds = Object.entries(config)
-		.filter(([key, value]) => /ConnectionId$/.test(key) && typeof value === "string")
-		.map(([, value]) => value as string);
-
-	const [rules, dbConnections, fileConnections] = await Promise.all([
-		configId.startsWith("CB")
-			? Promise.resolve([])
-			: db.select().from(traditionalConfigDetails).where(eq(traditionalConfigDetails.configId, configId)),
-		connectionIds.length ? db.select().from(databaseConnection).where(inArray(databaseConnection.connectionId, connectionIds)) : [],
-		connectionIds.length ? db.select().from(fileConnection).where(inArray(fileConnection.connectionId, connectionIds)) : [],
-	]);
-
-	const byKey = <T extends object>(rows: T[], key: keyof T) => [...rows].sort((a, b) => String(a[key]).localeCompare(String(b[key])));
-
-	return createHash("sha256")
-		.update(
-			JSON.stringify([
-				config,
-				byKey(rules, "tcReqId"),
-				byKey(dbConnections, "connectionId"),
-				byKey(fileConnections, "connectionId"),
-			]),
-		)
-		.digest("hex")
-		.slice(0, 16);
+	return Boolean(config?.enabled);
 }
 
 export class QCRunController {
@@ -166,15 +34,89 @@ export class QCRunController {
 		// at execution time if this is not a real user.
 		const userId = req.user.id;
 
+		if (req.user.role === "analyst" && !(await configIsEnabled(configId))) {
+			throw new ErrorResponse("Check not found", 404);
+		}
+
 		// Reads the in-memory rule cache, not the database.
 		const notify = await registry.notificationsRepo.anyRulesEnabled();
 
-		const accepted = await submitToEngine({
-			config_id: configId,
-			user_id: userId,
-			notify,
-			...(idempotencyKey ? { idempotency_key: `${idempotencyKey}@${await configVersion(configId)}` } : {}),
-		});
+		// A fingerprint of the check as it is NOW, so a repeated key stops meaning "the same run"
+		// the moment the check or anything it uses is edited.
+		const engineKey = idempotencyKey ? `${idempotencyKey}@${await configVersion(configId)}` : undefined;
+
+		// The same click repeated while this check is already held (or being handed over) is the same
+		// run -- whether the engine is still down or has just come back and the held run has not
+		// reached it yet. Without this, a click in that moment would start a second run beside it.
+		if (engineKey) {
+			const waiting = await registry.jobsRepo.findWaiting({ userId, configId, idempotencyKey: engineKey });
+
+			if (waiting) {
+				return res.status(202).json(
+					jsonResponse("mutation", {
+						data: { runId: waiting, state: "HELD", duplicate: true, held: true },
+						toast: { message: "Check is already held" },
+					}),
+				);
+			}
+		}
+
+		// Chosen here, so the run has ONE id whether it goes to the engine now or is held and sent
+		// later. The engine uses it as given.
+		const runId = randomUUID();
+
+		let accepted: EngineRunAccepted | null = null;
+		let heldBecause = "";
+
+		if (!engineState.isUp()) {
+			// The backend already knows the engine is down, so nothing is sent: the run is held.
+			heldBecause = `The engine is marked down (${engineState.get().reason}).`;
+		} else {
+			try {
+				accepted = await submitToEngine({
+					config_id: configId,
+					user_id: userId,
+					notify,
+					run_id: runId,
+					...(engineKey ? { idempotency_key: engineKey } : {}),
+				});
+			} catch (error) {
+				if (error instanceof EngineUnavailableError) {
+					// The backend's own decision. From here new runs are held until the engine says it is up.
+					engineState.markDown(error.message);
+					heldBecause = error.message;
+				} else if (error instanceof EngineRejectedError) {
+					throw new ErrorResponse(error.message, 502);
+				} else {
+					throw error;
+				}
+			}
+		}
+
+		if (!accepted) {
+			const held = await registry.jobsRepo.hold({
+				runId,
+				configId,
+				source,
+				userId,
+				apiKeyId: req.apiKeyId,
+				idempotencyKey: engineKey,
+				reason: heldBecause,
+			});
+
+			logger.warn(`Check held, engine not available: config=${configId} source=${source} run=${held.runId}: ${heldBecause}`);
+
+			return res.status(202).json(
+				jsonResponse("mutation", {
+					data: { runId: held.runId, state: "HELD", duplicate: held.duplicate, held: true },
+					toast: {
+						message: held.duplicate
+							? "Check is already held"
+							: "The engine is not available. The check is held and will start by itself when the engine is back.",
+					},
+				}),
+			);
+		}
 
 		const isDuplicate = accepted.duplicate === true;
 

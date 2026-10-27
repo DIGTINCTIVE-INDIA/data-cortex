@@ -59,20 +59,35 @@ export class QCFileConfigurationRepo {
 			throw new ErrorResponse("Unable to read file from S3", 400);
 		}
 
-		const stream = result.Body as Readable;
+		let stream = result.Body as Readable;
 
-		const rows = await QCFileSchemaRepo.readRowsByFileType(stream, payload.sourceFileType, MAX_SCHEMA_ROWS);
+		// A csv's delimiter is whatever was chosen, or else what its header line uses.
+		let delimiter = payload.sourceFileDelimiter ?? "comma";
+
+		if (payload.sourceFileType === "csv" && !payload.sourceFileDelimiter) {
+			const detected = await QCFileSchemaRepo.detectDelimiter(stream, result.ContentLength);
+
+			stream = detected.stream;
+			delimiter = detected.delimiter;
+		}
+
+		const rows = await QCFileSchemaRepo.readRowsByFileType(stream, payload.sourceFileType, MAX_SCHEMA_ROWS, delimiter);
 
 		if (!rows.length) {
 			throw new ErrorResponse("No records found in file", 400);
 		}
+
+		const columns = QCFileSchemaRepo.inferColumns(rows);
+
+		if (payload.sourceFileType === "csv") QCFileSchemaRepo.assertDelimiterFits(columns, delimiter);
 
 		return {
 			fileName: QCFileSchemaRepo.buildFileName(payload.sourceFileName, payload.sourceFileType),
 			sourceFileType: payload.sourceFileType,
 			sourceConnectionId: payload.sourceConnectionId,
 			rowsScanned: rows.length,
-			columns: QCFileSchemaRepo.inferColumns(rows),
+			columns,
+			sourceFileDelimiter: payload.sourceFileType === "csv" ? delimiter : undefined,
 		};
 	}
 
@@ -123,6 +138,12 @@ export class QCFileConfigurationRepo {
 				})
 				.returning();
 
+			for (const column of columns) {
+				if (column.lengthCheck && column.minLength != null && column.maxLength != null && column.maxLength < column.minLength) {
+					throw new ErrorResponse(`"${column.field}": the maximum length cannot be below the minimum length`, 400);
+				}
+			}
+
 			const detailsPayload: (typeof traditionalConfigDetails.$inferInsert)[] = columns.map((column) => ({
 				configId,
 				userId: payload.userId,
@@ -141,7 +162,8 @@ export class QCFileConfigurationRepo {
 				duplicateCheckCriticality: column.duplicateCheckCriticality || null,
 
 				lengthCheck: Boolean(column.lengthCheck),
-				expectedLength: column.expectedLength ?? null,
+				minLength: column.minLength ?? null,
+				maxLength: column.maxLength ?? null,
 				lengthCheckCriticality: column.lengthCheckCriticality || null,
 
 				formatCheck: Boolean(column.formatCheck),
@@ -233,6 +255,23 @@ export class QCFileConfigurationRepo {
 		return updated;
 	}
 
+	async listFileConfigColumns(configId: string, onlyEnabled = false) {
+		const config = await db.query.fileBasedChecksConfig.findFirst({
+			where: eq(fileBasedChecksConfig.configId, configId),
+		});
+
+		// Switched-off checks do not exist as far as an analyst is concerned.
+		if (!config || (onlyEnabled && !config.enabled)) {
+			throw new ErrorResponse("File based check configuration not found", 404);
+		}
+
+		return await db
+			.select()
+			.from(traditionalConfigDetails)
+			.where(eq(traditionalConfigDetails.configId, configId))
+			.orderBy(traditionalConfigDetails.columnOrder);
+	}
+
 	async toggleFileStorageCheckConfig(configId: string) {
 		const existing = await db.query.fileBasedChecksConfig.findFirst({
 			where: eq(fileBasedChecksConfig.configId, configId),
@@ -255,12 +294,15 @@ export class QCFileConfigurationRepo {
 		return updated;
 	}
 
-	async listFileStorageCheckConfigs({ page = 1, limit = 20 }: PaginationType) {
+	async listFileStorageCheckConfigs({ page = 1, limit = 20 }: PaginationType, onlyEnabled = false) {
 		const offset = (page - 1) * limit;
 
-		const [{ value: total }] = await db.select({ value: count() }).from(fileBasedChecksConfig);
+		// An analyst is shown only the checks that are switched on.
+		const visible = onlyEnabled ? eq(fileBasedChecksConfig.enabled, true) : undefined;
 
-		const rows = await db.select().from(fileBasedChecksConfig).orderBy(desc(fileBasedChecksConfig.configId)).limit(limit).offset(offset);
+		const [{ value: total }] = await db.select({ value: count() }).from(fileBasedChecksConfig).where(visible);
+
+		const rows = await db.select().from(fileBasedChecksConfig).where(visible).orderBy(desc(fileBasedChecksConfig.configId)).limit(limit).offset(offset);
 
 		return Paginator.paginate(
 			{

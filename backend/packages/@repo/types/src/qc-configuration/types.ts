@@ -13,6 +13,8 @@ export type GetFileStorageCheckSchemaPayload = {
 	sourceFileType: SourceFileType;
 	sourceFileName: string;
 	sourceFilePath: string;
+	// Left out, the delimiter of a csv is detected from its header line.
+	sourceFileDelimiter?: "comma" | "pipe" | "tab" | "semicolon";
 	targetConnectionId: string;
 	targetTableNamePrefix: string;
 	createLanding: boolean;
@@ -38,6 +40,8 @@ export type FileStorageCheckSchemaResult = {
 	sourceConnectionId: string;
 	rowsScanned: number;
 	columns: ColumnSchema[];
+	// For a csv: the delimiter the file was read with (the one given, or the one detected).
+	sourceFileDelimiter?: "comma" | "pipe" | "tab" | "semicolon";
 };
 
 export type ValidateQueryPayload = {

@@ -383,7 +383,10 @@ export class AnalyseWorkstreamRepo {
           AND r2.check_id = p.check_id
           AND r2.check_name = p.check_name
           AND r2.file_or_table_name = p.file_or_table_name
-          AND r2.field = p.field
+          -- The field is NULL for custom checks and other table-level checks, and = NULL never
+          -- matches, which left those checks with no dots at all. IS NOT DISTINCT FROM matches
+          -- two NULLs as well as two equal values.
+          AND r2.field IS NOT DISTINCT FROM p.field
           -- The dots show run history, so only real executions belong in them. A run that
           -- was skipped behind a failing gate is not a red dot against this check.
           AND r2.check_status IN ('passed', 'failed')
@@ -600,7 +603,9 @@ export class AnalyseWorkstreamRepo {
 		const ident = (name: string) => `"${(isSnowflake ? name.toUpperCase() : name).replace(/"/g, '""')}"`;
 		const lit = (value: string) => `'${value.replace(/'/g, "''")}'`;
 
-		const table = ident(`${config.targetTablePrefix}_err`);
+		// `_err` holds only the latest run; `_err_hist` accumulates every run, so it is the one that
+		// can answer for an older run. `_err` is the fallback for tables that predate the history.
+		const tables = [ident(`${config.targetTablePrefix}_err_hist`), ident(`${config.targetTablePrefix}_err`)];
 		const conditions = [`${ident("_job_id")} = ${lit(base.jobId)}`];
 
 		if (configId.startsWith("CB")) {
@@ -616,21 +621,28 @@ export class AnalyseWorkstreamRepo {
 			conditions.push(`${ident(`_${library.mapping}`)} LIKE ${lit('%"Fail"%')}`);
 		}
 
-		try {
-			const result = await new DBExplorerRepo().executeQuery(config.targetConnectionId, {
-				sqlQuery: `SELECT * FROM ${table} WHERE ${conditions.join(" AND ")}`,
-				page: 1,
-				pageSize: Math.min(limit, 100),
-			});
-			return { columns: result.columns, rows: result.rows, hasMore: result.pagination.hasMore, note: null as string | null };
-		} catch (error) {
-			const message = String((error as { message?: string })?.message ?? "");
-			// A missing table or column means this check wrote no error rows (it passed, was
-			// table-level, or the landing option was off), which is not a fault to show.
-			if (/does not exist|invalid identifier|not authorized|SQL compilation error/i.test(message)) {
-				return empty("No error records were stored for this check. It may check the table as a whole, or the error table has not been created yet.");
+		const explorer = new DBExplorerRepo();
+		const missing = /does not exist|invalid identifier|not authorized|SQL compilation error/i;
+
+		let lastError: unknown = null;
+
+		for (const table of tables) {
+			try {
+				const result = await explorer.executeQuery(config.targetConnectionId, {
+					sqlQuery: `SELECT * FROM ${table} WHERE ${conditions.join(" AND ")}`,
+					page: 1,
+					pageSize: Math.min(limit, 100),
+				});
+
+				return { columns: result.columns, rows: result.rows, hasMore: result.pagination.hasMore, note: null as string | null };
+			} catch (error) {
+				lastError = error;
+				if (!missing.test(String((error as { message?: string })?.message ?? ""))) throw error;
 			}
-			throw error;
 		}
+
+		// Every candidate table was absent: the check passed, is table-level, or wrote no rows.
+		void lastError;
+		return empty("No error records were stored for this check. It may check the table as a whole, or the error table has not been created yet.");
 	}
 }

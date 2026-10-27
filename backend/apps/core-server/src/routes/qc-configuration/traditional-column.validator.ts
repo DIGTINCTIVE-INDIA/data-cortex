@@ -28,7 +28,10 @@ export const traditionalColumnCheckValidator = vine.object({
 	duplicateCheckCriticality: vine.enum(criticalityTypes).optional().requiredWhen("duplicateCheck", "=", true),
 
 	lengthCheck: vine.boolean(),
-	expectedLength: vine.number().optional().requiredWhen("lengthCheck", "=", true),
+	// A length is always a range: minLength is the minimum, maxLength the maximum, both
+	// included. An exact length is the same number in both.
+	minLength: vine.number().optional().requiredWhen("lengthCheck", "=", true),
+	maxLength: vine.number().optional().requiredWhen("lengthCheck", "=", true),
 	lengthCheckCriticality: vine.enum(criticalityTypes).optional().requiredWhen("lengthCheck", "=", true),
 
 	formatCheck: vine.boolean(),

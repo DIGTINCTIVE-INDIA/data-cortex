@@ -14,6 +14,7 @@ import { createDbConnectionsRouter } from "./connections/db/router.js";
 import { createFileStorageConnectionsRouter } from "./connections/fileStorage/router.js";
 import { createDashboardRouter } from "./dashboard/router.js";
 import { createDbExplorerRouter } from "./db-explorer/routes.js";
+import { createEngineRouter } from "./engine/router.js";
 import { createFilesRouter } from "./files/router.js";
 import { createJobsRouter } from "./jobs/router.js";
 import { createLibrariesRouter } from "./libraries/router.js";
@@ -42,6 +43,7 @@ app.use("/api/qc-configuration/run", AuthMiddlewares.validateRunAccess, createRu
 app.use("/api/qc-configuration", AuthMiddlewares.validateAccessToken, createQcConfigurationRouter());
 app.use("/api/libraries", AuthMiddlewares.validateAccessToken, createLibrariesRouter());
 app.use("/api/notifications", createNotificationsRouter());
+app.use("/api/engine", createEngineRouter());
 app.use("/api/db-explorer", AuthMiddlewares.validateAccessToken, createDbExplorerRouter());
 app.use("/api/reports", AuthMiddlewares.validateAccessToken, createReportsRouter());
 app.use("/api/dashboard", AuthMiddlewares.validateAccessToken, createDashboardRouter());

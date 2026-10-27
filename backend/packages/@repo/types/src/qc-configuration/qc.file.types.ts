@@ -47,7 +47,8 @@ export type TraditionalColumnCheckPayload = {
 	duplicateCheckCriticality?: CheckCriticality;
 
 	lengthCheck?: boolean;
-	expectedLength?: number;
+	minLength?: number;
+	maxLength?: number;
 	lengthCheckCriticality?: CheckCriticality;
 
 	formatCheck?: boolean;

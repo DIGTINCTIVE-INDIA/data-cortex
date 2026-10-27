@@ -139,7 +139,9 @@ export const traditionalConfigDetails = pgTable("traditional_config_details", {
 	duplicateCheck: boolean("duplicate_check").notNull(),
 	duplicateCheckCriticality: checkCriticality("duplicate_check_criticality"),
 	lengthCheck: boolean("length_check").notNull(),
-	expectedLength: integer("expected_length"),
+	minLength: integer("min_length"),
+	// The top of a length range. Empty means the length is exactly minLength.
+	maxLength: integer("max_length"),
 	lengthCheckCriticality: checkCriticality("length_check_criticality"),
 	formatCheck: boolean("format_check").notNull(),
 	formatRegex: varchar("format_regex"),

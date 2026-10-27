@@ -222,14 +222,18 @@ export class CustomSqlCheckRepo {
 		return updated;
 	}
 
-	async listCustomSqlCheckConfigs({ page = 1, limit = 20 }: PaginationType) {
+	async listCustomSqlCheckConfigs({ page = 1, limit = 20 }: PaginationType, onlyEnabled = false) {
 		const offset = (page - 1) * limit;
 
-		const [{ total }] = await db.select({ total: count() }).from(customBusinessChecksConfig);
+		// An analyst is shown only the checks that are switched on.
+		const visible = onlyEnabled ? eq(customBusinessChecksConfig.enabled, true) : undefined;
+
+		const [{ total }] = await db.select({ total: count() }).from(customBusinessChecksConfig).where(visible);
 
 		const items = await db
 			.select()
 			.from(customBusinessChecksConfig)
+			.where(visible)
 			.orderBy(desc(customBusinessChecksConfig.checkId))
 			.limit(limit)
 			.offset(offset);

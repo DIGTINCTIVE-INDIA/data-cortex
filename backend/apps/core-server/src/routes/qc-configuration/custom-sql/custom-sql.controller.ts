@@ -72,7 +72,7 @@ export class QCConfCustomSqlController {
 	static listCustomSqlCheckConfigs = catchAsync(async (req, res) => {
 		const query = await validate(paginationValidator, req.query);
 
-		const result = await registry.customSqlCheckRepo.listCustomSqlCheckConfigs(query);
+		const result = await registry.customSqlCheckRepo.listCustomSqlCheckConfigs(query, req.user.role === "analyst");
 
 		return res.status(200).json(
 			jsonResponse("paginated", {

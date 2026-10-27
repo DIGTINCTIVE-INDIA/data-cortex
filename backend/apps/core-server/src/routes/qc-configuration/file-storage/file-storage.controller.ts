@@ -8,6 +8,18 @@ import {
 } from "./file-storage.validator.js";
 
 export class QCConfFileStorageController {
+	static listFileStorageCheckColumns = catchAsync(async (req, res) => {
+		const configId = req.query.configId as string;
+
+		if (!configId) {
+			throw new ErrorResponse("configId missing", 400);
+		}
+
+		const columns = await registry.qcFileConfigRepo.listFileConfigColumns(configId, req.user.role === "analyst");
+
+		return res.json(jsonResponse("query", { data: { columns } }));
+	});
+
 	static getFileStorageCheckSchema = catchAsync(async (req, res) => {
 		const payload = await validate(getFileStorageCheckSchemaValidator, req.body);
 
@@ -82,7 +94,7 @@ export class QCConfFileStorageController {
 	static listFileStorageCheckConfigs = catchAsync(async (req, res) => {
 		const query = await validate(paginationValidator, req.query);
 
-		const result = await registry.qcFileConfigRepo.listFileStorageCheckConfigs(query);
+		const result = await registry.qcFileConfigRepo.listFileStorageCheckConfigs(query, req.user.role === "analyst");
 
 		return res.status(200).json(
 			jsonResponse("paginated", {

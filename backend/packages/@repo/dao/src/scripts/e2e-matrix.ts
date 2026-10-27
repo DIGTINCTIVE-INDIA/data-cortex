@@ -223,7 +223,7 @@ const SF_TARGET: Side = { kind: "sf", connection: SF_ID };
 const PG_SOURCE = {
 	table: "hcp_sales",
 	columns: (riParent: { connection: string; table: string }) => [
-		rule("sale_id", "string", 1, { primaryKeyCheck: true, primaryKeyCheckCriticality: M, duplicateCheck: true, duplicateCheckCriticality: M, lengthCheck: true, expectedLength: 8, lengthCheckCriticality: M }),
+		rule("sale_id", "string", 1, { primaryKeyCheck: true, primaryKeyCheckCriticality: M, duplicateCheck: true, duplicateCheckCriticality: M, lengthCheck: true, minLength: 8, lengthCheckCriticality: M }),
 		rule("hcp_id", "string", 2, { nullCheck: true, nullCheckCriticality: M, riCheck: true, riConnectionId: riParent.connection, riReferenceTable: riParent.table, riFieldName: "hcp_id", riCheckCriticality: M }),
 		rule("product", "string", 3, { lovCheck: true, lovs: "Cardiozen,Onvexa,Neurolyn,Dermaclear", lovCheckCriticality: M, formatCheck: true, formatRegex: "^[A-Z][a-z]+$", formatCheckCriticality: M }),
 		rule("units", "integer", 4, { nullCheck: true, nullCheckCriticality: M }),
@@ -249,7 +249,7 @@ const SF_SOURCE = {
 	columns: () => [
 		rule("CUSTOMER_ID", "integer", 1, { primaryKeyCheck: true, primaryKeyCheckCriticality: M }),
 		rule("EMAIL", "string", 2, { nullCheck: true, nullCheckCriticality: M, duplicateCheck: true, duplicateCheckCriticality: M, formatCheck: true, formatRegex: "^[^@]+@[^@]+[.][a-z]+$", formatCheckCriticality: M }),
-		rule("REGION", "string", 3, { lovCheck: true, lovs: "US,EU", lovCheckCriticality: M, lengthCheck: true, expectedLength: 2, lengthCheckCriticality: M }),
+		rule("REGION", "string", 3, { lovCheck: true, lovs: "US,EU", lovCheckCriticality: M, lengthCheck: true, minLength: 2, lengthCheckCriticality: M }),
 	],
 	expected: {
 		"TC005:customer_id": 6, // ids 1, 5 and 8 each appear twice

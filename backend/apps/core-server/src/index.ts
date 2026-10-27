@@ -4,6 +4,7 @@ import { ENV } from "@repo/env";
 import { logger } from "@repo/logger";
 
 import { ServerEvents } from "./events/index.js";
+import { checkEngineAtStartup } from "./services/run-dispatcher.js";
 import { app } from "./routes/server.js";
 
 const startedAt = Date.now();
@@ -71,6 +72,7 @@ app.listen(ENV.PORT, async () => {
 
 	logEnvironment();
 	await probeDatabase();
+	await checkEngineAtStartup();
 
 	logger.info("-------------------------------------------------------------");
 	logger.info(`Server started on port ${ENV.PORT} — ready in ${elapsed()}`);

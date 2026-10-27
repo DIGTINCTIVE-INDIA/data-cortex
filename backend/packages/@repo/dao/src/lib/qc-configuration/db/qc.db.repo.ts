@@ -88,6 +88,12 @@ export class QCDBConfigurationRepo {
 
 			const replaced = await tx.delete(traditionalConfigDetails).where(eq(traditionalConfigDetails.configId, configId)).returning();
 
+			for (const column of columns) {
+				if (column.lengthCheck && column.minLength != null && column.maxLength != null && column.maxLength < column.minLength) {
+					throw new ErrorResponse(`"${column.field}": the maximum length cannot be below the minimum length`, 400);
+				}
+			}
+
 			const detailsPayload: (typeof traditionalConfigDetails.$inferInsert)[] = columns.map(column => ({
 				configId,
 				userId: myUserId,
@@ -106,7 +112,8 @@ export class QCDBConfigurationRepo {
 				duplicateCheckCriticality: column.duplicateCheckCriticality || null,
 
 				lengthCheck: Boolean(column.lengthCheck),
-				expectedLength: column.expectedLength ?? null,
+				minLength: column.minLength ?? null,
+				maxLength: column.maxLength ?? null,
 				lengthCheckCriticality: column.lengthCheckCriticality || null,
 
 				formatCheck: Boolean(column.formatCheck),
@@ -135,12 +142,13 @@ export class QCDBConfigurationRepo {
 	}
 
 	/** Field rules for a db-based check, in UI column order. */
-	async listDbConfigColumns(configId: string) {
+	async listDbConfigColumns(configId: string, onlyEnabled = false) {
 		const config = await db.query.dbBasedChecksConfig.findFirst({
 			where: eq(dbBasedChecksConfig.configId, configId),
 		});
 
-		if (!config) {
+		// Switched-off checks do not exist as far as an analyst is concerned.
+		if (!config || (onlyEnabled && !config.enabled)) {
 			throw new ErrorResponse("DB based check configuration not found", 404);
 		}
 
@@ -250,13 +258,16 @@ export class QCDBConfigurationRepo {
 		return updated;
 	}
 
-	async listDbConfigs({ page = 1, limit = 20 }: PaginationType) {
+	async listDbConfigs({ page = 1, limit = 20 }: PaginationType, onlyEnabled = false) {
 		const offset = (page - 1) * limit;
 
 		// const [{ total }] = await db.select({ total: count() }).from(dbBasedChecksConfig);
-		const [{ total }] = await db.select({ total: count() }).from(dbBasedChecksConfig);
+		// An analyst is shown only the checks that are switched on; a switched-off check is hidden from them entirely.
+		const visible = onlyEnabled ? eq(dbBasedChecksConfig.enabled, true) : undefined;
+
+		const [{ total }] = await db.select({ total: count() }).from(dbBasedChecksConfig).where(visible);
 		// const items = await db.select().from(dbBasedChecksConfig).orderBy(desc(dbBasedChecksConfig.configId)).limit(limit).offset(offset);
-		const items = await db.select().from(dbBasedChecksConfig).orderBy(desc(dbBasedChecksConfig.configId)).limit(limit).offset(offset);
+		const items = await db.select().from(dbBasedChecksConfig).where(visible).orderBy(desc(dbBasedChecksConfig.configId)).limit(limit).offset(offset);
 
 		return Paginator.paginate({ page: String(page), limit: String(limit) }, items, total);
 	}

@@ -1,16 +1,26 @@
 // qc-file-schema.repo.ts
 import type { ColumnSchema, FileRow, InferredDataType, SourceFileType } from "@repo/types";
+import { ErrorResponse } from "@repo/lib/error-handlers-module";
 import csvParser from "csv-parser";
 import ExcelJS from "exceljs";
 import { Readable } from "node:stream";
 import { parser } from "stream-json";
 import { streamArray } from "stream-json/streamers/stream-array.js";
 
+export type FileDelimiter = "comma" | "pipe" | "tab" | "semicolon";
+
+const SEPARATORS: Record<FileDelimiter, string> = { comma: ",", pipe: "|", tab: "\t", semicolon: ";" };
+
 export class QCFileSchemaRepo {
-	static async readRowsByFileType(stream: Readable, fileType: SourceFileType, maxRows: number): Promise<FileRow[]> {
+	static async readRowsByFileType(
+		stream: Readable,
+		fileType: SourceFileType,
+		maxRows: number,
+		delimiter: FileDelimiter = "comma",
+	): Promise<FileRow[]> {
 		switch (fileType) {
 			case "csv":
-				return this.readCsvRows(stream, maxRows);
+				return this.readCsvRows(stream, maxRows, delimiter);
 
 			case "excel":
 				return this.readExcelRows(stream, maxRows);
@@ -78,7 +88,182 @@ export class QCFileSchemaRepo {
 		});
 	}
 
-	static async readCsvRows(stream: Readable, maxRows: number): Promise<FileRow[]> {
+	/**
+	 * Which delimiter a csv uses, worked out from the start of the file the way the engine does
+	 * when a check has none set (it sniffs a sample): the delimiter that appears the same number
+	 * of times on (nearly) every record wins.
+	 *
+	 * Records, not text lines: a quoted cell may contain line breaks and delimiters, so the
+	 * sample is split into records with the quotes respected, and delimiters inside quotes are
+	 * never counted.
+	 *
+	 * When no delimiter is that consistent (ragged rows, say), the header record decides --
+	 * its delimiter is the one that produces the columns -- and comma is the answer only when
+	 * the header has none of them.
+	 */
+	static sniffDelimiter(sample: string, truncated: boolean): FileDelimiter {
+		const order: FileDelimiter[] = ["comma", "tab", "semicolon", "pipe"];
+		const text = sample.replace(/^﻿/, "");
+
+		// One pass: split into records, counting every candidate outside quotes as it goes.
+		type Counts = Partial<Record<FileDelimiter, number>>;
+		const records: Counts[] = [];
+		let current: Counts = {};
+		let quoted = false;
+		let hasContent = false;
+
+		for (const character of text) {
+			if (character === '"') {
+				quoted = !quoted;
+				hasContent = true;
+			} else if (!quoted && (character === "\n" || character === "\r")) {
+				if (hasContent) records.push(current);
+				current = {};
+				hasContent = false;
+			} else {
+				if (character.trim() !== "") hasContent = true;
+
+				if (!quoted) {
+					for (const name of order) {
+						if (character === SEPARATORS[name]) current[name] = (current[name] ?? 0) + 1;
+					}
+				}
+			}
+		}
+
+		// The sample ends wherever a chunk happened to end, so the last record may be cut short --
+		// unless it is the only one, in which case it is all the evidence there is.
+		if (hasContent && (!truncated || records.length === 0)) records.push(current);
+		const used = records.slice(0, 20);
+
+		if (used.length === 0) return "comma";
+
+		let best: { name: FileDelimiter; consistency: number; perRecord: number } | null = null;
+
+		for (const name of order) {
+			const frequency = new Map<number, number>();
+
+			for (const record of used) {
+				const found = record[name] ?? 0;
+				if (found > 0) frequency.set(found, (frequency.get(found) ?? 0) + 1);
+			}
+
+			if (frequency.size === 0) continue;
+
+			const [perRecord, agreeing] = [...frequency.entries()].sort((x, y) => y[1] - x[1] || y[0] - x[0])[0]!;
+			const consistency = agreeing / used.length;
+
+			if (consistency < 0.9) continue;
+
+			// An earlier name keeps a tie.
+			if (!best || consistency > best.consistency || (consistency === best.consistency && perRecord > best.perRecord)) {
+				best = { name, consistency, perRecord };
+			}
+		}
+
+		if (best) return best.name;
+
+		// Nothing was consistent: use whichever delimiter the header record has most of.
+		const header = used[0]!;
+		let fallback: FileDelimiter = "comma";
+		let most = 0;
+
+		for (const name of order) {
+			if ((header[name] ?? 0) > most) {
+				most = header[name]!;
+				fallback = name;
+			}
+		}
+
+		return fallback;
+	}
+
+	/**
+	 * Reads the start of a csv, works out its delimiter from it, and returns a stream that still
+	 * begins at the first byte -- what was read is put back in front.
+	 *
+	 * How much is read scales with the file: SAMPLE_PERCENT of its size, but never less than
+	 * MIN_SAMPLE_BYTES (a small file is simply read whole) and never more than MAX_SAMPLE_BYTES
+	 * (a huge file is not downloaded to learn one character). Whatever the percentage works out
+	 * to, it keeps reading until it holds MIN_SAMPLE_LINES complete lines, so a file with
+	 * hundreds of columns -- whose lines are long -- still gives enough lines to judge by. The
+	 * byte cap wins over everything, for a file with enormous lines or none.
+	 */
+	static async detectDelimiter(
+		stream: Readable,
+		totalBytes?: number,
+	): Promise<{ delimiter: FileDelimiter; stream: Readable }> {
+		const SAMPLE_PERCENT = 5;
+		const MIN_SAMPLE_BYTES = 64 * 1024;
+		const MAX_SAMPLE_BYTES = 2 * 1024 * 1024;
+		const MIN_SAMPLE_LINES = 10;
+
+		const byPercent = totalBytes ? Math.ceil((totalBytes * SAMPLE_PERCENT) / 100) : 0;
+		const target = Math.min(MAX_SAMPLE_BYTES, Math.max(MIN_SAMPLE_BYTES, byPercent));
+
+		const chunks: Buffer[] = [];
+		let size = 0;
+		let lineBreaks = 0;
+		let ended = false;
+
+		await new Promise<void>((resolve, reject) => {
+			const onData = (chunk: Buffer | string) => {
+				const buffer = Buffer.from(chunk);
+
+				chunks.push(buffer);
+				size += buffer.length;
+				lineBreaks += buffer.filter(byte => byte === 0x0a).length;
+
+				// One line break past the minimum, so the last line counted is complete.
+				if ((size >= target && lineBreaks > MIN_SAMPLE_LINES) || size >= MAX_SAMPLE_BYTES) {
+					stream.off("data", onData);
+					stream.pause();
+					resolve();
+				}
+			};
+
+			stream.once("error", reject);
+			stream.once("end", () => {
+				ended = true;
+				resolve();
+			});
+			stream.on("data", onData);
+		});
+
+		const head = Buffer.concat(chunks);
+		// Unless the whole file was read, the sample stops wherever a chunk happened to end.
+		const delimiter = this.sniffDelimiter(head.toString("utf8"), !ended);
+
+		async function* replay() {
+			for (const chunk of chunks) yield chunk;
+			for await (const chunk of stream) yield chunk as Buffer;
+		}
+
+		return { delimiter, stream: Readable.from(replay()) };
+	}
+
+	/**
+	 * A file read with the wrong delimiter does not fail: the whole header becomes ONE column
+	 * ("id;name;qty;code;grade"), which then looks like a schema. If the only column contains a
+	 * different delimiter, say so instead of returning that.
+	 */
+	static assertDelimiterFits(columns: ColumnSchema[], delimiter: FileDelimiter): void {
+		if (columns.length !== 1) return;
+
+		const header = columns[0]!.columnName;
+		const others = (Object.entries(SEPARATORS) as [FileDelimiter, string][]).filter(
+			([name, character]) => name !== delimiter && header.includes(character),
+		);
+
+		if (others.length === 0) return;
+
+		throw new ErrorResponse(
+			`The file's header has one column, "${header}", which looks ${others[0]![0]}-separated, but the delimiter is set to ${delimiter}. Change the delimiter and fetch again.`,
+			400,
+		);
+	}
+
+	static async readCsvRows(stream: Readable, maxRows: number, delimiter: FileDelimiter = "comma"): Promise<FileRow[]> {
 		return await new Promise<FileRow[]>((resolve, reject) => {
 			const rows: FileRow[] = [];
 			let settled = false;
@@ -96,7 +281,7 @@ export class QCFileSchemaRepo {
 			};
 
 			stream
-				.pipe(csvParser())
+				.pipe(csvParser({ separator: SEPARATORS[delimiter] ?? "," }))
 				.on("data", (row: FileRow) => {
 					if (settled) return;
 
