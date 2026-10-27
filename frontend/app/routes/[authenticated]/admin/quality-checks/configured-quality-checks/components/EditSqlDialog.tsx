@@ -225,6 +225,7 @@ const EditSqlDialog = ({ item, disabled }: Props) => {
               items={downstreams}
               selected={selectedDownstreams.map(Number)}
               onToggle={(item: any) => toggleDownstream(item.id)}
+              required
             />
 
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">

@@ -38,8 +38,8 @@ import { HugeiconsIcon } from "@hugeicons/react";
  * lib/permissions.ts) and a section shows only when at least one of its items does --
  * so the headings need no per-role logic of their own.
  *
- *   analyst   Analytics, Investigate (alerts, jobs, Database Explorer), Checks (library,
- *             configured checks -- they can run them), Reports
+ *   analyst   Analytics (including the QC Report), Investigate (alerts, jobs, Database Explorer),
+ *             Checks (library, configured checks -- they can run them)
  *   engineer  the above + QC Configuration, Connections, Email Notifications
  *   admin     everything, and the only role that ever sees the "Admin" heading
  *             (Users & Access, Libraries)
@@ -53,6 +53,7 @@ const sections = [
     items: [
       { title: "Dashboard", path: "/analytics/dashboard", icon: HomeIcon },
       { title: "Analyze Workstream", path: "/analytics/analyze-workstream", icon: UserGroupIcon },
+      { title: "QC Report", path: "/admin/reports/qc-summary-report", icon: FileIcon },
     ],
   },
   {
@@ -72,10 +73,6 @@ const sections = [
       { title: "Connections", path: "/admin/connections/db-connections", icon: DatabaseIcon },
       { title: "Email Notifications", path: "/admin/connections/email-notifications", icon: NotificationIcon },
     ],
-  },
-  {
-    title: "Reports",
-    items: [{ title: "QC Report", path: "/admin/reports/qc-summary-report", icon: FileIcon }],
   },
   {
     title: "Admin",

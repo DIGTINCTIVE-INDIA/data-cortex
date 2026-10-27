@@ -2,7 +2,9 @@ import { cn } from "@/lib/utils";
 import { Input as InputPrimitive } from "@base-ui/react/input";
 import * as React from "react";
 
-import { useAuthStore } from "@/contexts/AuthContext";
+import { InfoHint } from "@/components/ui/hint";
+import { useAuthStore } from "@/contexts/AuthContext";
+
 import { can, type Permission } from "@/lib/permissions";
 import { ViewIcon, ViewOffSlashIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -14,9 +16,17 @@ type InputProps = React.ComponentProps<"input"> & {
   requires?: Permission;
   /** Shows a * beside the label. Marking only -- validation stays with the form. */
   required?: boolean;
+  /** Explanation shown on hover of a small "i" in the label, instead of a note under the field. */
+  hint?: string;
+  /**
+   * A faint continuation shown INSIDE the field right after what has been typed, to show how the
+   * value will look in actual use (for a table prefix: the table it becomes). Shown only once
+   * something is typed, so it never sits on top of the placeholder.
+   */
+  ghost?: { typed: string; suffix: string };
 };
 
-function Input({ onlyAdmin, requires, className, type, label, error, id, required, ...props }: InputProps) {
+function Input({ onlyAdmin, requires, className, type, label, error, id, required, hint, ghost, ...props }: InputProps) {
   const role = useAuthStore(state => state.auth.session?.role);
   const needed: Permission | undefined = requires ?? (onlyAdmin ? "admin" : undefined);
   const isDisabled = needed !== undefined && !can(role, needed);
@@ -59,6 +69,7 @@ function Input({ onlyAdmin, requires, className, type, label, error, id, require
                 *
               </span>
             )}
+            {hint && <InfoHint text={hint} />}
           </label>
         )}
 
@@ -85,6 +96,20 @@ function Input({ onlyAdmin, requires, className, type, label, error, id, require
           )}
           {...props}
         />
+
+        {/* GHOST: same box, padding and font as the input, so the faint suffix starts exactly where
+            the typed text ends; the typed part is invisible and only holds the space. */}
+        {ghost && ghost.typed && (
+          <div
+            aria-hidden="true"
+            className={cn(
+              "pointer-events-none absolute inset-0 flex items-center overflow-hidden whitespace-pre px-3 text-sm",
+              className?.includes("font-mono") && "font-mono"
+            )}>
+            <span className="invisible">{ghost.typed}</span>
+            <span className="text-muted-foreground/50">{ghost.suffix}</span>
+          </div>
+        )}
 
         {/* 👁 PASSWORD TOGGLE */}
         {isPassword && (

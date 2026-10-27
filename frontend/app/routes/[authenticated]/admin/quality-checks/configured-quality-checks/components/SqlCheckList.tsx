@@ -1,12 +1,13 @@
 import InfiniteListWrapper from "@/components/layout/InfiniteListWrapper";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { useAuthStore } from "@/contexts/AuthContext";
+import { can } from "@/lib/permissions";
 import { useApi } from "@/lib/useApi";
 import type { CustomSqlCheckItem } from "@/lib/useApi/types/qcConfigurationApis.types";
 import { cn } from "@/lib/utils";
 import { Database01Icon, PlayIcon, SourceCodeCircleIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { filterByWorkstream } from "../utils/filterByWorkstream";
 import EditSqlDialog from "./EditSqlDialog";
 import { EmptyState } from "./EmptyState";
@@ -33,7 +34,9 @@ export const SqlCheckList = ({ workstream }: Props) => {
     refetch,
   } = useApi("GET /api/qc-configuration/custom-sql/list-checks");
 
-  const sqlList = sqlResponse?.data?.items || [];
+  // An analyst never sees a check that has been switched off.
+  const canSeeDisabled = can(useAuthStore(state => state.auth.session?.role), "configure");
+  const sqlList = (sqlResponse?.data?.items || []).filter(item => canSeeDisabled || item.enabled);
   const filteredSqlList = useMemo(() => filterByWorkstream(sqlList, workstream), [sqlList, workstream]);
 
   return (
@@ -63,8 +66,13 @@ export const SqlCheckList = ({ workstream }: Props) => {
   );
 };
 
+
+
 const SqlCheckCard = ({ item }: { item: CustomSqlCheckItem }) => {
+  const [viewOpen, setViewOpen] = useState(false);
   const runIsLive = useRunIsLive(item.checkId);
+  // An analyst can look at a check and run it; editing and switching it on or off are for engineers and admins.
+  const canConfigure = can(useAuthStore(state => state.auth.session?.role), "configure");
 
   const { mutateAsync, isPending } = useApi("PATCH /api/qc-configuration/custom-sql/update-check", {
     query: {
@@ -107,9 +115,21 @@ const SqlCheckCard = ({ item }: { item: CustomSqlCheckItem }) => {
   };
 
   return (
+    <>
     <div
+      role="button"
+      tabIndex={0}
+      onClick={() => item.enabled && setViewOpen(true)}
+      onKeyDown={event => {
+        if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          if (item.enabled) setViewOpen(true);
+        }
+      }}
       className={cn(
-        "rounded-2xl bg-background px-4 py-3.5 ring-1 ring-border/60 transition hover:bg-muted/25 hover:ring-primary/30",
+        item.enabled &&
+          "cursor-pointer hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5 active:translate-y-0 active:shadow-sm",
+        "rounded-2xl bg-background px-4 py-3.5 ring-1 ring-border/60 transition duration-200 hover:bg-muted/25 hover:ring-primary/30",
         runIsLive && "dc-live"
       )}>
       <div className="flex items-start justify-between gap-4">
@@ -121,8 +141,8 @@ const SqlCheckCard = ({ item }: { item: CustomSqlCheckItem }) => {
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2">
               <h3 className="min-w-0 truncate text-[15px] font-semibold text-foreground" title={String(item.checkName)}>{item.checkName}</h3>
-
               <Badge>{item.checkId}</Badge>
+
 
               <Badge tone="warning">{workstream?.tagTitle || "Worksteam N/A"}</Badge>
 
@@ -135,7 +155,8 @@ const SqlCheckCard = ({ item }: { item: CustomSqlCheckItem }) => {
         </div>
 
         {/* Edit, then the on/off switch at the far right, in the top corner of every card. */}
-        <div className="flex shrink-0 items-center gap-3">
+        {canConfigure && (
+          <div className="flex shrink-0 items-center gap-3" onClick={event => event.stopPropagation()}>
           <EditSqlDialog item={item} disabled={!item.enabled} />
           <Switch
             requires="configure"
@@ -144,6 +165,7 @@ const SqlCheckCard = ({ item }: { item: CustomSqlCheckItem }) => {
             onCheckedChange={() => handleToggleConfig(item.checkId)}
           />
         </div>
+        )}
       </div>
 
       {/* The facts on the left; View details and Run on the same line, at the right,
@@ -151,18 +173,19 @@ const SqlCheckCard = ({ item }: { item: CustomSqlCheckItem }) => {
       <div className="mt-2.5 flex items-end justify-between gap-4 md:pl-12">
         <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-2">
           <Meta label="Data Source" value={dataSource?.tagTitle || "Data Source N/A"} />
-          <Meta label="Source Connection" value={sourceConnection?.connectionName || "SourceConnection N/A"} />
-          <Meta label="Target Connection" value={targetConnection?.connectionName || "Target Connection N/A"} />
-
+          <Meta label="Source Connection" value={sourceConnection?.connectionName || "Source Connection N/A"} />
+          <Meta label="Target Connection" value={targetConnection?.connectionName || "Target connection N/A"} />
           <Meta label="Table Prefix" value={item.targetTablePrefix} />
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
-          <SqlViewDialog item={item} disabled={!item.enabled} />
+        <div className="flex shrink-0 items-center gap-2" onClick={event => event.stopPropagation()}>
           <RunCheckButton configId={item.checkId} source="custom-sql" enabled={item.enabled} />
         </div>
       </div>
     </div>
+
+    <SqlViewDialog item={item} open={viewOpen} onOpenChange={setViewOpen} />
+    </>
   );
 };
 

@@ -9,6 +9,8 @@ type RunCheckResult = {
   runId: string;
   state: string;
   duplicate: boolean;
+  /** True when the engine was unavailable and the backend is holding the run. */
+  held?: boolean;
 };
 
 /**
@@ -131,7 +133,15 @@ export function useRunCheck() {
 
       const result = response?.data;
 
-      if (result?.duplicate) {
+      if (result?.held) {
+        // The engine is not available, so the backend kept the run. It is not lost and not an
+        // error: it goes to the engine by itself as soon as the engine is back.
+        toast.info(`${configId} is held`, {
+          id: toastId,
+          description: "The engine is not available right now. The check will start by itself when it is back.",
+          duration: 10000,
+        });
+      } else if (result?.duplicate) {
         // The engine recognised the key and handed back the original run rather than
         // starting a second one. Saying "queued" here would be a lie.
         toast.info(`${configId} is already running`, {

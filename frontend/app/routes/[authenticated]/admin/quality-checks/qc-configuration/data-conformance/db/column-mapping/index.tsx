@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { FieldRulesTable, buildDefaultRule, type FieldRule } from "@/components/ui/custom/FieldRulesTable";
+import { FieldRulesTable, buildDefaultRule, splitRiTable, type FieldRule } from "@/components/ui/custom/FieldRulesTable";
 import { SchemaFileDrop } from "@/components/ui/custom/SchemaFileDrop";
+import { clearCache, readCache, writeCache } from "@/lib/localCache";
 import { schemaFromNativeColumns } from "@/lib/schemaFile/nativeTypes";
 import { useApi } from "@/lib/useApi";
 import type { ParsedSchemaRow } from "@/lib/schemaFile/parseSchemaFile";
@@ -35,8 +36,23 @@ export default function DbColumnMappingPage() {
   const connectionId = searchParams.get("connectionId") ?? "";
   const tableName = searchParams.get("tableName") ?? "";
 
-  const [fileName, setFileName] = useState<string | null>(null);
-  const [rules, setRules] = useState<FieldRule[]>([]);
+  // The table is kept in this browser as it is edited (order, ticks, values), so a refresh or a
+  // closed tab does not lose it. Cleared once the rules are saved.
+  const cacheKey = `rules:db:${configId}`;
+  const [rules, setRules] = useState<FieldRule[]>(
+    () =>
+      (configId &&
+        readCache<FieldRule[]>(
+          cacheKey,
+          value => Array.isArray(value) && value.length > 0 && value.every(rule => typeof (rule as FieldRule)?.field === "string")
+        )) ||
+      []
+  );
+  const [fileName, setFileName] = useState<string | null>(() => (rules.length ? "restored from this browser" : null));
+
+  useEffect(() => {
+    if (configId && rules.length) writeCache(cacheKey, rules);
+  }, [cacheKey, configId, rules]);
 
   const { mutateAsync: setColumns, isPending } = useApi("POST /api/qc-configuration/db/set-columns");
 
@@ -80,28 +96,59 @@ export default function DbColumnMappingPage() {
       return;
     }
 
-    // Mirrors what the backend requires: a criticality whenever the check is enabled.
-    // Catching it here names the column, which a 422 from the server would not.
-    const incomplete = rules.find(
-      rule =>
-        (rule.primaryKeyCheck && !rule.primaryKeyCheckCriticality) ||
-        (rule.nullCheck && !rule.nullCheckCriticality) ||
-        (rule.duplicateCheck && !rule.duplicateCheckCriticality) ||
-        (rule.lengthCheck && (!rule.expectedLength || !rule.lengthCheckCriticality)) ||
-        (rule.formatCheck && (!rule.formatRegex || !rule.formatCheckCriticality)) ||
-        (rule.lovCheck && (!rule.lovs || !rule.lovCheckCriticality)) ||
-        (rule.riCheck && (!rule.riReferenceTable || !rule.riFieldName || !rule.riCheckCriticality))
+    // Mirrors what the backend requires: a criticality whenever the check is enabled, and its
+    // value where one is needed. Catching it here names the column AND the check, which a 422
+    // from the server would not.
+    const missingFor = (rule: FieldRule): string | null => {
+      if (rule.primaryKeyCheck && !rule.primaryKeyCheckCriticality) return "Primary Key needs a criticality";
+      if (rule.nullCheck && !rule.nullCheckCriticality) return "Null needs a criticality";
+      if (rule.duplicateCheck && !rule.duplicateCheckCriticality) return "Duplicate needs a criticality";
+      if (rule.lengthCheck && !rule.minLength) return "Length is ticked but has no minimum";
+      if (rule.lengthCheck && !rule.maxLength) return "Length is ticked but has no maximum (use the same number for an exact length)";
+      if (rule.lengthCheck && rule.maxLength && rule.minLength && rule.maxLength < rule.minLength) return "Length maximum is below the minimum";
+      if (rule.lengthCheck && !rule.lengthCheckCriticality) return "Length needs a criticality";
+      if (rule.formatCheck && !rule.formatRegex) return "Format is ticked but has no regex";
+      if (rule.formatCheck && !rule.formatCheckCriticality) return "Format needs a criticality";
+      if (rule.lovCheck && !rule.lovs) return "List of Values is ticked but has no values";
+      if (rule.lovCheck && !rule.lovCheckCriticality) return "List of Values needs a criticality";
+      if (rule.riCheck && !splitRiTable(rule.riReferenceTable).table.trim()) return "Referential Integrity is ticked but has no table";
+      if (rule.riCheck && !rule.riFieldName) return "Referential Integrity is ticked but has no field";
+      if (rule.riCheck && !rule.riCheckCriticality) return "Referential Integrity needs a criticality";
+      return null;
+    };
+
+    for (const rule of rules) {
+      const problem = missingFor(rule);
+      if (problem) {
+        toast.error(`"${rule.field}": ${problem}`, { description: "Fix it, or untick the check, then save again." });
+        return;
+      }
+    }
+
+    // A list of columns with nothing ticked saves fine but can never run: the engine finds no check
+    // to execute. Say so here, before it becomes a failed run.
+    const anyCheck = rules.some(
+      rule => rule.primaryKeyCheck || rule.nullCheck || rule.duplicateCheck || rule.lengthCheck || rule.formatCheck || rule.lovCheck || rule.riCheck
     );
 
-    if (incomplete) {
-      toast.error(`"${incomplete.field}" is incomplete`, {
-        description: "Every enabled check needs its criticality, and its value where one is required.",
+    if (!anyCheck) {
+      toast.error("No checks are ticked", {
+        description: "Tick at least one check on at least one column. With none ticked there is nothing to run.",
       });
       return;
     }
 
+    // A db check's reference table is read through the same connection as its source table,
+    // so the connection is filled in here; the backend refuses a referential check without one.
+    if (!connectionId && rules.some(rule => rule.riCheck)) {
+      toast.error("Cannot save referential checks", { description: "This check has no source connection recorded." });
+      return;
+    }
+
+    const columns = rules.map(rule => (rule.riCheck ? { ...rule, riConnectionId: rule.riConnectionId || connectionId } : rule));
+
     try {
-      await setColumns({ configId, columns: rules });
+      await setColumns({ configId, columns });
 
       toast.success(`Field rules saved for ${configId}`, {
         description: `${rules.length} column${rules.length === 1 ? "" : "s"} configured.`,
@@ -110,6 +157,7 @@ export default function DbColumnMappingPage() {
       // Finished: the draft has done its job, and a completed check should not be
       // offered back as something to edit in this flow.
       clearDraft(DB_FLOW, configId);
+      clearCache(cacheKey);
 
       navigate(DB_CONFIG_LIST);
     } catch (error) {

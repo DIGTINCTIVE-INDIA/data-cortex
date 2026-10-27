@@ -110,6 +110,7 @@ export default function EmailNotificationsPage() {
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Configure email distribution lists for QC check notifications
+
             </p>
           </div>
 
@@ -175,7 +176,7 @@ export default function EmailNotificationsPage() {
                       : "No configurations match your search."}
                   </StateRow>
                 )}
-
+                
                 {filteredConfigs.map(config => (
                   <tr key={config.ruleId} className="border-t border-border/40 hover:bg-muted/20">
                     <TableCell>

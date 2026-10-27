@@ -7,13 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuthStore } from "@/contexts/AuthContext";
 import { useApi } from "@/lib/useApi";
-import type { JobCheckResult, JobItem, JobStatus } from "@/lib/useApi/types/jobsApis.types";
+import type { JobCheckResult, JobDetail, JobItem, JobStatus } from "@/lib/useApi/types/jobsApis.types";
 import { cn } from "@/lib/utils";
 
 import { useLiveClock } from "./useLiveClock";
 
 const FILTERS: { label: string; value: JobStatus | "all" }[] = [
   { label: "All", value: "all" },
+  { label: "Held", value: "held" },
   { label: "Queued", value: "queued" },
   { label: "Running", value: "running" },
   { label: "Completed", value: "completed" },
@@ -21,6 +22,7 @@ const FILTERS: { label: string; value: JobStatus | "all" }[] = [
 ];
 
 const STATUS_STYLE: Record<JobStatus, string> = {
+  held: "bg-warning/10 text-warning",
   queued: "bg-muted text-muted-foreground",
   running: "bg-info/10 text-info",
   completed: "bg-success/10 text-success",
@@ -80,6 +82,12 @@ export default function JobsPage() {
   const countFor = (value: JobStatus | "all") =>
     value === "all" ? jobs.length : jobs.filter(job => job.status === value).length;
 
+  // If the selected category empties (its last running job finished, say), its chip disappears;
+  // fall back to All rather than leave an empty list with nothing highlighted.
+  useEffect(() => {
+    if (!isLoading && filter !== "all" && !jobs.some(job => job.status === filter)) setFilter("all");
+  }, [jobs, filter, isLoading]);
+
   // "Live" is judged over everything loaded, not just what the filter shows -- a running
   // job hidden behind the Completed chip still has to be noticed when it finishes.
   const anyLive = jobs.some(job => isLive(job.status));
@@ -129,7 +137,9 @@ export default function JobsPage() {
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        {FILTERS.map(item => (
+        {/* A category appears only while at least one job is in it ("All" always does), so there is
+            never a chip that leads to an empty list. */}
+        {FILTERS.filter(item => item.value === "all" || countFor(item.value) > 0).map(item => (
           <button
             key={item.value}
             type="button"
@@ -145,7 +155,7 @@ export default function JobsPage() {
         ))}
 
         {anyLive && (
-          <span className="ml-2 text-xs text-muted-foreground">Unfinished jobs are checked every {POLL_MS / 1000}s</span>
+          <span className="ml-2 text-xs text-muted-foreground"></span>
         )}
       </div>
 
@@ -157,17 +167,22 @@ export default function JobsPage() {
                 <th className="px-4 py-3 font-medium">Check</th>
                 {isAdmin && <th className="px-4 py-3 font-medium">Started By</th>}
                 <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Results</th>
+                <th className="px-4 py-3 font-medium" title="Each rule on a column is one check; a custom check is one check.">
+                  Checks
+                </th>
+                <th className="px-4 py-3 font-medium" title="Rows of the table. A row that fails several checks counts once.">
+                  Rows
+                </th>
                 <th className="px-4 py-3 font-medium">Submitted</th>
                 <th className="px-4 py-3 font-medium">Duration</th>
               </tr>
             </thead>
 
             <tbody>
-              {isLoading && <StateRow span={isAdmin ? 6 : 5}>Loading jobs...</StateRow>}
-              {isError && !isLoading && <StateRow span={isAdmin ? 6 : 5}>Could not load jobs.</StateRow>}
+              {isLoading && <StateRow span={isAdmin ? 7 : 6}>Loading jobs...</StateRow>}
+              {isError && !isLoading && <StateRow span={isAdmin ? 7 : 6}>Could not load jobs.</StateRow>}
               {!isLoading && !isError && visibleJobs.length === 0 && (
-                <StateRow span={isAdmin ? 6 : 5}>
+                <StateRow span={isAdmin ? 7 : 6}>
                   {filter === "all" ? "No jobs yet. Run a check from Configured Checks." : `No ${filter} jobs.`}
                 </StateRow>
               )}
@@ -177,8 +192,12 @@ export default function JobsPage() {
                   key={job.runId}
                   onClick={() => setOpenRunId(job.runId)}
                   className="cursor-pointer border-t border-border/40 hover:bg-muted/20">
-                  <td className="px-4 py-3">
-                    <p className="font-semibold text-foreground">{job.configName ?? job.configId}</p>
+                  {/* A fixed ceiling, so one very long name cannot stretch the whole column; the full
+                      name is still in the tooltip. */}
+                  <td className="max-w-[360px] px-4 py-3">
+                    <p className="truncate font-semibold text-foreground" title={job.configName ?? job.configId}>
+                      {job.configName ?? job.configId}
+                    </p>
                     <p className="font-mono text-xs text-muted-foreground">
                       {job.configId} · {job.runId.slice(0, 8)}
                     </p>
@@ -204,6 +223,9 @@ export default function JobsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <CheckCounts job={job} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <RowCounts job={job} />
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{formatDate(job.submittedAt)}</td>
                   <td className="px-4 py-3 text-muted-foreground tabular-nums">
@@ -246,17 +268,54 @@ function CheckCounts({ job }: { job: JobItem }) {
   const { passed, failed, error, upstream_failed } = job.checks;
   const total = passed + failed + error + upstream_failed;
 
+  if (job.status === "held") return <span className="text-xs text-muted-foreground">Waiting for the engine</span>;
   if (isLive(job.status)) return <span className="text-muted-foreground">—</span>;
   if (total === 0) return <span className="text-muted-foreground">No results</span>;
 
   return (
-    <div className="flex flex-wrap gap-1.5 text-xs font-semibold">
+    <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
+      <span className="font-medium text-muted-foreground">
+        {total} {total === 1 ? "check" : "checks"}
+      </span>
       <span className="rounded-full bg-success/10 px-2 py-0.5 text-success">{passed} passed</span>
       {failed > 0 && <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-destructive">{failed} failed</span>}
       {error > 0 && <span className="rounded-full bg-warning/10 px-2 py-0.5 text-warning">{error} error</span>}
       {upstream_failed > 0 && (
         <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">{upstream_failed} not run</span>
       )}
+    </div>
+  );
+}
+
+/**
+ * What the run did to the DATA: out of this many rows, this many different rows failed at least
+ * one check. Not the same number as the failed checks beside it -- one bad row can fail several
+ * checks, and one check can fail many rows.
+ */
+function RowCounts({ job }: { job: JobItem }) {
+  const { total, failed, clean } = job.rows ?? { total: null, failed: null, clean: null };
+
+  if (isLive(job.status) || job.status === "held") return <span className="text-muted-foreground">—</span>;
+
+  if (total === null || failed === null || clean === null) {
+    return (
+      <span className="text-muted-foreground" title="No row counts were recorded for this run. Open it to see why.">
+        —
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
+      <span className="font-medium tabular-nums text-muted-foreground">{total.toLocaleString()} rows</span>
+      <span
+        className={cn(
+          "rounded-full px-2 py-0.5 tabular-nums",
+          failed > 0 ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"
+        )}>
+        {failed.toLocaleString()} failed
+      </span>
+      <span className="rounded-full bg-success/10 px-2 py-0.5 tabular-nums text-success">{clean.toLocaleString()} passed</span>
     </div>
   );
 }
@@ -328,14 +387,25 @@ function JobDetailDialog({ runId, isAdmin, onClose }: { runId: string | null; is
               <Detail label="Duration" value={`${formatDuration(job, now)}${live ? " so far" : ""}`} />
             </div>
 
-            {job.error && (
-              <div>
-                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Job Error</p>
-                <p className="mt-1 rounded-xl bg-destructive/5 px-3 py-2 text-sm text-foreground ring-1 ring-destructive/20">
-                  {job.error}
+            {job.status === "held" && (
+              <div className="rounded-xl bg-warning/5 p-3 ring-1 ring-warning/30">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-warning">Held</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">Waiting for the engine</p>
+                <p className="mt-0.5 text-sm text-foreground/90">
+                  The engine was not available when this was started. It is kept safely and goes to the engine by itself as
+                  soon as the engine says it is up. Nothing needs to be done.
                 </p>
+                {job.lastDispatchError && (
+                  <p className="mt-2 break-words font-mono text-xs text-muted-foreground" title={job.lastDispatchError}>
+                    Last reason: {job.lastDispatchError.slice(0, 240)}
+                  </p>
+                )}
               </div>
             )}
+
+            {job.error && <JobFailure job={job} />}
+
+            {!isLive(job.status) && job.results.length > 0 && <RunSummary job={job} />}
 
             <div>
               <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -354,6 +424,9 @@ function JobDetailDialog({ runId, isAdmin, onClose }: { runId: string | null; is
                         <th className="px-3 py-2 font-medium">Check</th>
                         <th className="px-3 py-2 font-medium">Field</th>
                         <th className="px-3 py-2 font-medium">Result</th>
+                        <th className="px-3 py-2 font-medium" title="Rows that failed this one check">
+                          Rows failing
+                        </th>
                         <th className="px-3 py-2 font-medium">Detail</th>
                       </tr>
                     </thead>
@@ -399,10 +472,159 @@ function ResultRow({ result }: { result: JobCheckResult }) {
           {result.checkStatus === "upstream_failed" ? "not run" : result.checkStatus}
         </span>
       </td>
+      <td className="px-3 py-2 tabular-nums text-muted-foreground">
+        {/* Only checks that look at rows have a count; "NA" and a missing count mean none. */}
+        {/^\d+$/.test(result.issueRows) ? Number(result.issueRows).toLocaleString() : "—"}
+      </td>
       <td className="px-3 py-2 text-muted-foreground">
         {result.checkStatus === "passed" ? "—" : (result.failureReason ?? "—")}
       </td>
     </tr>
+  );
+}
+
+/**
+ * Why the JOB failed (not a check): a plain title and reason for the business reader, and the
+ * raw error behind an expander for the developer. Both have a fixed size -- the reason is cut to
+ * three lines and the raw detail scrolls inside a box of fixed height -- so a huge error never
+ * stretches the dialog.
+ */
+function JobFailure({ job }: { job: JobItem }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const detail = job.errorDetail?.trim() || "";
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(`${job.errorTitle ?? "Job failed"}\n${job.error ?? ""}\n\n${detail}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard blocked: the text is still selectable in the box.
+    }
+  };
+
+  return (
+    <div className="rounded-xl bg-destructive/5 p-3 ring-1 ring-destructive/20">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-destructive">Job failed</p>
+      <p className="mt-1 text-sm font-semibold text-foreground">{job.errorTitle ?? "Job failed"}</p>
+      <p className="mt-0.5 line-clamp-3 break-words text-sm text-foreground/90" title={job.error ?? undefined}>
+        {job.error}
+      </p>
+
+      <div className="mt-2 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setOpen(value => !value)}
+          aria-expanded={open}
+          className="text-xs font-medium text-primary underline-offset-4 hover:underline">
+          {open ? "Hide technical details" : "Show technical details"}
+        </button>
+        {open && detail && (
+          <button type="button" onClick={copy} className="text-xs font-medium text-muted-foreground hover:text-foreground">
+            {copied ? "Copied" : "Copy"}
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-background/80 p-3 font-mono text-xs text-foreground ring-1 ring-border/60">
+          {detail || "No technical detail was recorded for this run. Runs that failed before this was added only have the message above."}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+/** The two separate answers about a finished run: how the checks went, and what happened to the rows. */
+/**
+ * Says why a run has no row counts, from what the run itself recorded -- never a guess. A mandatory
+ * check that fails stops the checks after it and keeps no error rows; a check that errors is
+ * named the same way. With neither, the run simply recorded no row counts, and that is all it says.
+ */
+function rowsUnavailableReason(results: JobCheckResult[]) {
+  const named = (ids: string[]) =>
+    ids
+      .map(id => {
+        const found = results.find(result => result.checkId === id);
+        return found ? `${found.checkName} (${id})` : id;
+      })
+      .join(", ");
+
+  // The checks that did not run say which mandatory check stopped them ("TC003 (Column Order) ... required gate").
+  const gateIds = [
+    ...new Set(
+      results
+        .filter(result => result.checkStatus === "upstream_failed")
+        .flatMap(result => result.failureReason?.match(/\bTC\d+\b/g) ?? [])
+    ),
+  ];
+
+  if (gateIds.length > 0) {
+    const gates = results.filter(result => gateIds.includes(result.checkId));
+    const failed = gates.filter(result => result.checkStatus === "failed").map(result => result.checkId);
+
+    if (failed.length > 0) {
+      return `Not available. ${named(failed)} is a mandatory check and it failed, so the checks after it did not run and no error rows were kept.`;
+    }
+
+    return `Not available. ${named(gateIds)} is a mandatory check and the checks after it did not run, so no error rows were kept.`;
+  }
+
+  const errored = results.filter(result => result.checkStatus === "error").map(result => result.checkId);
+
+  if (errored.length > 0) {
+    return `Not available. ${named(errored)} ended in an error, so the rows were not evaluated.`;
+  }
+
+  return "Not available. This run recorded no row counts.";
+}
+
+function RunSummary({ job }: { job: JobDetail }) {
+  const { passed, failed, error, upstream_failed } = job.checks;
+  const checkTotal = passed + failed + error + upstream_failed;
+  const { total, failed: rowsFailed, clean } = job.rows ?? { total: null, failed: null, clean: null };
+  const isCustom = job.source === "custom-sql";
+
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      <div className="rounded-2xl bg-muted/30 p-4 ring-1 ring-border/50">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Checks</p>
+        <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+          {failed} <span className="text-base font-medium text-muted-foreground">of {checkTotal} failed</span>
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {passed} passed
+          {error > 0 && ` · ${error} error`}
+          {upstream_failed > 0 && ` · ${upstream_failed} not run`}
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          {isCustom
+            ? "A custom check is one check, whatever its query returns."
+            : "One check is one rule on one column, such as Null on column A."}
+        </p>
+      </div>
+
+      <div className="rounded-2xl bg-muted/30 p-4 ring-1 ring-border/50">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Rows</p>
+        {total === null || rowsFailed === null || clean === null ? (
+          <p className="mt-1 text-sm text-muted-foreground">{rowsUnavailableReason(job.results)}</p>
+        ) : (
+          <>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+              {rowsFailed.toLocaleString()}{" "}
+              <span className="text-base font-medium text-muted-foreground">of {total.toLocaleString()} rows failed</span>
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">{clean.toLocaleString()} passed</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {isCustom
+                ? "The rows the query returned, out of the table's rows."
+                : "A row that fails several checks counts once, so this can be smaller than the failed checks."}
+            </p>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 

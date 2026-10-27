@@ -1,19 +1,19 @@
+import { createPortal } from "react-dom";
+
+import type { DragGhostState } from "@/lib/reorder";
 import { cn } from "@/lib/utils";
 
 /**
- * The six-dot grip. It is the one affordance people already read as "pick this up
- * and move it", which is why the up/down buttons that used to sit beside it are gone:
- * two controls for one operation, and the arrows were only ever there because HTML5
- * drag-and-drop ignored touch screens. The reorder hook uses Pointer Events now, so
- * the handle works for mouse, touch and pen, and the arrow keys do the same job from
- * the keyboard.
+ * The six-dot grip. It is the one affordance people already read as "pick this up and move
+ * it". It has a visible outline at rest, so it is findable in a wide table, and the cursor
+ * becomes a grabbing hand once the drag starts.
  */
 export const DragHandle = ({ className, ...props }: React.ComponentProps<"span">) => (
   <span
     {...props}
     className={cn(
-      "inline-flex cursor-grab select-none items-center justify-center rounded-md p-1 text-muted-foreground",
-      "transition-colors hover:bg-muted hover:text-foreground active:cursor-grabbing",
+      "inline-flex cursor-grab select-none items-center justify-center rounded-md border border-border bg-background p-1.5 text-muted-foreground shadow-sm",
+      "transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary active:cursor-grabbing active:bg-primary active:text-primary-foreground",
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
       className
     )}>
@@ -27,3 +27,19 @@ export const DragHandle = ({ className, ...props }: React.ComponentProps<"span">
     </svg>
   </span>
 );
+
+/** A label that follows the pointer while a row is being dragged, naming what is being carried. */
+export const DragGhost = ({ ghost }: { ghost: DragGhostState | null }) => {
+  if (!ghost || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      aria-hidden="true"
+      style={{ position: "fixed", left: ghost.x + 14, top: ghost.y + 14 }}
+      className="pointer-events-none z-[100] flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-2xl ring-2 ring-primary-foreground/30">
+      <span aria-hidden>⠿</span>
+      {ghost.label}
+    </div>,
+    document.body
+  );
+};

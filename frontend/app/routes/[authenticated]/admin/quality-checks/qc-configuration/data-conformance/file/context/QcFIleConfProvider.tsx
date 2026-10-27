@@ -31,9 +31,12 @@ export type FileBasedCheckFormValues = {
   description: string;
   fileAvailableOn: FileStorageType;
   sourceConnectionId: string;
-  sourceFileType: SourceFileType;
+  // Optional: left empty, it is worked out from the file name when saved.
+  sourceFileType: SourceFileType | "";
   sourceFileName: string;
   sourceFilePath: string;
+  /** For a csv. Empty means "detect it from the file"; fetching the columns fills in what was found. */
+  sourceFileDelimiter?: "" | "comma" | "semicolon" | "pipe" | "tab";
   targetConnectionId: string;
   targetTableNamePrefix: string;
   createLanding: boolean;
@@ -112,7 +115,7 @@ type QCConfigurationContextType = {
   createLanding: boolean;
   fileAvailableOn: FileStorageType;
   selectedSourceConnectionId: string;
-  sourceFileType: SourceFileType;
+  sourceFileType: SourceFileType | "";
   sourceFileName: string;
   sourceFilePath: string;
 
@@ -164,9 +167,10 @@ export const QcFIleConfProvider = ({ children }: { children: React.ReactNode }) 
       description: "",
       fileAvailableOn: "s3",
       sourceConnectionId: "",
-      sourceFileType: "csv",
+      sourceFileType: "",
       sourceFileName: "",
       sourceFilePath: "",
+      sourceFileDelimiter: "",
       targetConnectionId: "",
       targetTableNamePrefix: "",
       createLanding: false,
@@ -255,6 +259,11 @@ export const QcFIleConfProvider = ({ children }: { children: React.ReactNode }) 
         return;
       }
 
+      // The delimiter the backend read the file with. Kept on the form, so the saved check reads
+      // the file the same way the columns were read.
+      const delimiterUsed = (response?.data?.schema as { sourceFileDelimiter?: string } | undefined)?.sourceFileDelimiter;
+      if (delimiterUsed) setValue("sourceFileDelimiter", delimiterUsed as FileBasedCheckFormValues["sourceFileDelimiter"]);
+
       onSchemaFileParsed(
         columns.map(column => ({
           field: column.columnName,
@@ -264,7 +273,7 @@ export const QcFIleConfProvider = ({ children }: { children: React.ReactNode }) 
         `${watch("sourceFileName")} (from source)`
       );
 
-      toast.success(`Read ${columns.length} columns from the file`);
+      toast.success(`Read ${columns.length} columns from ${watch("sourceFileName")}`);
     } catch (error) {
       const message =
         (error as { response?: { data?: { message?: string } } })?.response?.data?.message ??

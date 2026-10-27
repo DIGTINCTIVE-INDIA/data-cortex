@@ -1,4 +1,5 @@
 import { Checkbox } from "@/components/ui/checkbox";
+import { DragGhost, DragHandle } from "@/components/ui/custom/DragHandle";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -21,7 +22,8 @@ export type FieldRule = {
   duplicateCheckCriticality?: string | null;
 
   lengthCheck: boolean;
-  expectedLength?: number | null;
+  minLength?: number | null;
+  maxLength?: number | null;
   lengthCheckCriticality?: string | null;
 
   formatCheck: boolean;
@@ -62,6 +64,26 @@ const SIMPLE_CHECKS = [
   { key: "duplicateCheck", criticalityKey: "duplicateCheckCriticality", label: "Duplicate" },
 ] as const;
 
+/**
+ * The reference schema and table are stored together as "schema.table" in riReferenceTable
+ * (there is no separate schema column), and the engine reads the schema from that prefix.
+ * With no schema the value is just the table, and the connection's own schema is used.
+ */
+export function splitRiTable(value?: string | null): { schema: string; table: string } {
+  const text = value ?? "";
+  const dot = text.indexOf(".");
+
+  return dot < 0 ? { schema: "", table: text } : { schema: text.slice(0, dot), table: text.slice(dot + 1) };
+}
+
+export function joinRiTable(schema: string, table: string): string | null {
+  const s = schema.trim();
+
+  if (!s) return table || null;
+
+  return `${s}.${table}`;
+}
+
 export function buildDefaultRule(field: string, dataType: TraditionalDataType, columnOrder: number): FieldRule {
   return {
     field,
@@ -93,8 +115,10 @@ export function FieldRulesTable({ rules, onChange, disabled }: Props) {
   // Column order is what the order check compares against, so it is editable: drag a row,
   // or use the arrows. Numbers are always rewritten 1..n from the visible order, so they
   // can never skip or repeat.
-  const reorder = useRowReorder(rules, next =>
-    onChange(next.map((rule, position) => ({ ...rule, columnOrder: position + 1 })))
+  const reorder = useRowReorder(
+    rules,
+    next => onChange(next.map((rule, position) => ({ ...rule, columnOrder: position + 1 }))),
+    rule => rule.field
   );
 
   const update = (index: number, patch: Partial<FieldRule>) => {
@@ -153,7 +177,7 @@ export function FieldRulesTable({ rules, onChange, disabled }: Props) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-24">Order</TableHead>
+            <TableHead className="w-44">Order</TableHead>
             <TableHead className="min-w-[180px]">Column</TableHead>
             <TableHead className="min-w-[140px]">Data Type</TableHead>
             {SIMPLE_CHECKS.map(check => (
@@ -161,10 +185,10 @@ export function FieldRulesTable({ rules, onChange, disabled }: Props) {
                 {check.label}
               </TableHead>
             ))}
-            <TableHead className="min-w-[220px]">Length</TableHead>
+            <TableHead className="min-w-[320px]">Length (min to max)</TableHead>
             <TableHead className="min-w-[260px]">Format</TableHead>
             <TableHead className="min-w-[260px]">List of Values</TableHead>
-            <TableHead className="min-w-[320px]">Referential Integrity</TableHead>
+            <TableHead className="min-w-[440px]">Referential Integrity</TableHead>
           </TableRow>
         </TableHeader>
 
@@ -175,34 +199,38 @@ export function FieldRulesTable({ rules, onChange, disabled }: Props) {
               // that changes remounts the row and drops focus mid-edit.
               key={rule.field}
               {...(disabled ? {} : reorder.rowProps(index))}
-              className={cn(
-                reorder.dragging === index && "opacity-40",
-                reorder.over === index && reorder.dragging !== index && "bg-primary/5"
-              )}>
+              className={reorder.rowClass(index)}>
               <TableCell className="text-muted-foreground">
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
+                  {disabled ? null : <DragHandle {...reorder.handleProps(index, rule.field)} title="Drag to reorder" />}
                   <span
-                    aria-hidden
-                    title="Drag to reorder"
-                    className={cn("select-none px-1 text-base leading-none", !disabled && "cursor-grab active:cursor-grabbing")}>
-                    ⠿
+                    className={cn(
+                      "inline-flex h-7 min-w-7 items-center justify-center rounded-md px-1.5 text-sm font-semibold tabular-nums transition-colors duration-500",
+                      reorder.moved === index ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                    )}>
+                    {rule.columnOrder}
                   </span>
-                  <span className="w-5 text-right">{rule.columnOrder}</span>
                   <button
                     type="button"
                     aria-label={`Move ${rule.field} up`}
+                    title="Move up"
                     disabled={disabled || index === 0}
                     onClick={() => reorder.move(index, index - 1)}
-                    className="rounded px-1 hover:bg-muted disabled:opacity-30">
-                    ↑
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-foreground shadow-sm transition hover:border-primary hover:bg-primary hover:text-primary-foreground active:scale-90 disabled:pointer-events-none disabled:opacity-30">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M2 8l4-4 4 4" />
+                    </svg>
                   </button>
                   <button
                     type="button"
                     aria-label={`Move ${rule.field} down`}
+                    title="Move down"
                     disabled={disabled || index === rules.length - 1}
                     onClick={() => reorder.move(index, index + 1)}
-                    className="rounded px-1 hover:bg-muted disabled:opacity-30">
-                    ↓
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-foreground shadow-sm transition hover:border-primary hover:bg-primary hover:text-primary-foreground active:scale-90 disabled:pointer-events-none disabled:opacity-30">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M2 4l4 4 4-4" />
+                    </svg>
                   </button>
                 </div>
               </TableCell>
@@ -246,19 +274,33 @@ export function FieldRulesTable({ rules, onChange, disabled }: Props) {
                     checked={rule.lengthCheck}
                     disabled={disabled}
                     onCheckedChange={value =>
-                      toggle(index, "lengthCheck", ["expectedLength", "lengthCheckCriticality"], Boolean(value))
+                      toggle(index, "lengthCheck", ["minLength", "maxLength", "lengthCheckCriticality"], Boolean(value))
                     }
                   />
+                  {/* A length is always a range, both ends included. For an exact length, type the
+                      same number in both. */}
                   <Input
                     type="number"
                     min={1}
                     className="h-8 w-20"
-                    placeholder="Len"
-                    value={rule.expectedLength ?? ""}
+                    placeholder="Min"
+                    aria-label={`${rule.field} minimum length`}
+                    value={rule.minLength ?? ""}
                     disabled={disabled || !rule.lengthCheck}
                     onChange={event =>
-                      update(index, { expectedLength: event.target.value ? Number(event.target.value) : null })
+                      update(index, { minLength: event.target.value ? Number(event.target.value) : null })
                     }
+                  />
+                  <span className="text-xs text-muted-foreground">to</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    className="h-8 w-20"
+                    placeholder="Max"
+                    aria-label={`${rule.field} maximum length`}
+                    value={rule.maxLength ?? ""}
+                    disabled={disabled || !rule.lengthCheck}
+                    onChange={event => update(index, { maxLength: event.target.value ? Number(event.target.value) : null })}
                   />
                   {criticalitySelect(rule, index, "lengthCheckCriticality", rule.lengthCheck)}
                 </div>
@@ -318,10 +360,26 @@ export function FieldRulesTable({ rules, onChange, disabled }: Props) {
                   />
                   <Input
                     className="h-8 w-28"
-                    placeholder="Table"
-                    value={rule.riReferenceTable ?? ""}
+                    placeholder="Schema"
+                    title="Schema of the reference table. Leave empty to use the connection's own schema."
+                    value={splitRiTable(rule.riReferenceTable).schema}
                     disabled={disabled || !rule.riCheck}
-                    onChange={event => update(index, { riReferenceTable: event.target.value || null })}
+                    onChange={event =>
+                      update(index, {
+                        riReferenceTable: joinRiTable(event.target.value, splitRiTable(rule.riReferenceTable).table),
+                      })
+                    }
+                  />
+                  <Input
+                    className="h-8 w-28"
+                    placeholder="Table"
+                    value={splitRiTable(rule.riReferenceTable).table}
+                    disabled={disabled || !rule.riCheck}
+                    onChange={event =>
+                      update(index, {
+                        riReferenceTable: joinRiTable(splitRiTable(rule.riReferenceTable).schema, event.target.value),
+                      })
+                    }
                   />
                   <Input
                     className="h-8 w-28"
@@ -337,6 +395,8 @@ export function FieldRulesTable({ rules, onChange, disabled }: Props) {
           ))}
         </TableBody>
       </Table>
+
+      <DragGhost ghost={reorder.ghost} />
     </div>
   );
 }

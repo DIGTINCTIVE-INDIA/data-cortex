@@ -2,10 +2,8 @@ import { Controller } from "react-hook-form";
 import { Link } from "react-router";
 
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import {
@@ -17,10 +15,12 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { fileAvailableOnOptions, fileTypes, useQcFIleConfProvider } from "./context/QcFIleConfProvider.js";
+import { FILE_TYPE_BY_EXTENSION } from "../../utils/QcFileConfigurationUtils";
 import { toast } from "sonner";
 import { DownstreamPicker } from "../../components/DownstreamPicker";
 import { FlowSteps } from "../../components/FlowSteps";
 import { FormSection } from "../../components/FormSection";
+import { LandingTableField } from "../../components/LandingTableField";
 
 /**
  * Splits a pasted object key into its folder and its file.
@@ -59,16 +59,6 @@ const parseFileLocation = (raw: string, bucket?: string) => {
   };
 };
 
-// What the extension says about the file type. Anything unknown leaves the type as chosen.
-const FILE_TYPE_BY_EXTENSION: Record<string, "csv" | "excel" | "json"> = {
-  csv: "csv",
-  tsv: "csv",
-  txt: "csv",
-  xlsx: "excel",
-  xls: "excel",
-  json: "json",
-};
-
 const FileBasedCheckPage = () => {
   const {
     register,
@@ -91,13 +81,17 @@ const FileBasedCheckPage = () => {
     downstreamItems,
     createLanding,
     fileAvailableOn,
+    sourceFileType,
     isAwsS3,
     selectedFileConnection,
     s3PickupUrl,
 
     onSubmit,
     setValue,
+    watch,
   } = useQcFIleConfProvider();
+
+  const targetTablePrefix = watch("targetTableNamePrefix");
 
   // Path and name accept the same things -- a full path, a folder, or just a file -- and
   // fill in the rest: the other field, and the file type from the extension.
@@ -113,6 +107,9 @@ const FileBasedCheckPage = () => {
 
       const type = FILE_TYPE_BY_EXTENSION[file.match(FILE_EXTENSION)![1].toLowerCase()];
       if (type) setValue("sourceFileType", type, { shouldValidate: true });
+
+      // A .tsv is tab-separated; any other csv is left to be detected from its header.
+      if (/\.tsv$/i.test(file)) setValue("sourceFileDelimiter", "tab");
     }
   };
 
@@ -158,28 +155,28 @@ const FileBasedCheckPage = () => {
             </div>
 
             <FormSection>
-              <div className="grid grid-cols-1 gap-5">
-              <Input
-                required
-                label="Check Name"
-                error={errors.checkName?.message}
-                placeholder="Customer File Conformance"
-                {...register("checkName", {
-                  required: "Check name is required",
-                  minLength: {
-                    value: 3,
-                    message: "Minimum 3 characters required",
-                  },
-                })}
-              />
-              </div>
+              <div className="grid grid-cols-1 items-start gap-5 md:grid-cols-2">
+                <Input
+                  required
+                  label="Check Name"
+                  error={errors.checkName?.message}
+                  placeholder="Customer File Conformance"
+                  {...register("checkName", {
+                    required: "Check name is required",
+                    minLength: {
+                      value: 3,
+                      message: "Minimum 3 characters required",
+                    },
+                  })}
+                />
 
-              <Textarea
-                label="Description"
-                {...register("description")}
-                placeholder="Write a short description..."
-                className="min-h-[120px] resize-y"
-              />
+                <Textarea
+                  label="Description"
+                  {...register("description")}
+                  placeholder="Write a short description..."
+                  className="h-11 min-h-11 resize-y py-2.5"
+                />
+              </div>
             </FormSection>
 
             <FormSection step={1} title="Classification" description="How this check is grouped and who is affected when it fails.">
@@ -197,6 +194,8 @@ const FileBasedCheckPage = () => {
                       onValueChange={value => field.onChange(Number(value))}>
                       <SelectTrigger
                         isLoading={isPending}
+                        empty={!isPending && workstreamItems.length === 0}
+                        emptyText="No workstreams configured yet"
                         required
                         label="Impacted Workstream"
                         error={errors.workstreamId?.message}>
@@ -225,7 +224,7 @@ const FileBasedCheckPage = () => {
                     <Select
                       value={field.value ? String(field.value) : undefined}
                       onValueChange={value => field.onChange(Number(value))}>
-                      <SelectTrigger required isLoading={isPending} label="Check Category" error={errors.categoryId?.message}>
+                      <SelectTrigger required isLoading={isPending} empty={!isPending && categoryItems.length === 0} emptyText="No categories configured yet" label="Check Category" error={errors.categoryId?.message}>
                         <SelectValue placeholder="Select check category">{selected?.tagTitle}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
@@ -251,7 +250,7 @@ const FileBasedCheckPage = () => {
                     <Select
                       value={field.value ? String(field.value) : undefined}
                       onValueChange={value => field.onChange(Number(value))}>
-                      <SelectTrigger required isLoading={isPending} label="Data Source" error={errors.dataSourceId?.message}>
+                      <SelectTrigger required isLoading={isPending} empty={!isPending && (dataSourceItems?.length ?? 0) === 0} emptyText="No data sources configured yet" label="Data Source" error={errors.dataSourceId?.message}>
                         <SelectValue placeholder="Select data source">{selected?.tagTitle}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
@@ -277,69 +276,14 @@ const FileBasedCheckPage = () => {
             </FormSection>
 
             <FormSection step={2} title="Source & target" description="Where the file lives and is picked up, and where passing and failing rows are written.">
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <Controller
-                name="fileAvailableOn"
-                control={control}
-                rules={{ required: "Please select file availability" }}
-                render={({ field }) => {
-                  const selected = fileAvailableOnOptions.find(item => item.value === field.value);
-
-                  return (
-                    <Select value={field.value || undefined} onValueChange={field.onChange}>
-                      <SelectTrigger label="File Available On" required error={errors.fileAvailableOn?.message}>
-                        <SelectValue placeholder="Select file storage">{selected?.label}</SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {fileAvailableOnOptions.map(item => (
-                          <SelectItem key={item.value} value={item.value}>
-                            {item.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  );
-                }}
-              />
-
-              <Controller
-                name="sourceFileType"
-                control={control}
-                rules={{ required: "Please select file type" }}
-                render={({ field }) => {
-                  const selected = fileTypes.find(item => item.value === field.value);
-
-                  return (
-                    <Select value={field.value || undefined} onValueChange={field.onChange}>
-                      <SelectTrigger label="Source File Type" required error={errors.sourceFileType?.message}>
-                        <SelectValue placeholder="Select file type">{selected?.label}</SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {fileTypes.map(item => (
-                          <SelectItem key={item.value} value={item.value}>
-                            {item.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  );
-                }}
-              />
-            </div>
-
-            {isAwsS3 && (
+              {/* The source details, then a clear gap, then the target details. Every row holds two
+                  fields; none stands alone. */}
               <div className="space-y-5">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                   <Controller
                     name="sourceConnectionId"
                     control={control}
-                    rules={{
-                      validate: value => {
-                        if (!isAwsS3) return true;
-                        return !!value || "Please select a source file connection";
-                      },
-                    }}
+                    rules={{ required: "Please select a source file connection" }}
                     render={({ field }) => {
                       const selected = activeFileConnections.find(
                         (item: any) => String(item.connectionId) === String(field.value)
@@ -347,7 +291,12 @@ const FileBasedCheckPage = () => {
 
                       return (
                         <Select value={field.value || undefined} onValueChange={field.onChange}>
-                          <SelectTrigger label="Source Connection" required error={errors.sourceConnectionId?.message}>
+                          <SelectTrigger
+                            label="Source Connection"
+                            required
+                            empty={activeFileConnections.length === 0}
+                            emptyText="No file connections yet"
+                            error={errors.sourceConnectionId?.message}>
                             <SelectValue placeholder="Select source file connection">
                               {selected?.connectionName || selected?.connectionId}
                             </SelectValue>
@@ -363,57 +312,129 @@ const FileBasedCheckPage = () => {
                       );
                     }}
                   />
+
+                  {/* Not chosen: it follows from the source connection (S3 is the only storage). */}
+                  <Input
+                    label="File Available On"
+                    hint="Taken from the source connection. Only S3 is supported for now."
+                    readOnly
+                    tabIndex={-1}
+                    className="cursor-default"
+                    placeholder="Set by the source connection"
+                    value={
+                      selectedFileConnection
+                        ? (fileAvailableOnOptions.find(item => item.value === selectedFileConnection.storageType)?.label ??
+                          String(selectedFileConnection.storageType))
+                        : ""
+                    }
+                    onChange={() => {}}
+                  />
                 </div>
 
-                {/* Path and file sit beside each other: they are read together, and the
-                    connection select above was pushing the file name onto its own row. */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div className="space-y-2 ">
-                    <Input
-                      label="File Path"
-                      required
-                      error={errors.sourceFilePath?.message}
-                      className="font-mono"
-                      placeholder="Eg. healthcare/  or  healthcare/customers.csv"
-                      {...register("sourceFilePath", {
-                        validate: value => !!value?.trim() || "File path is required",
-                        onBlur: event => applyLocation(event.target.value),
-                      })}
-                    />
-                    <p className="pl-2 text-xs text-muted-foreground mt-1">
-                      The folder inside the bucket, or the full path to the file. The file name is filled in for you.
-                    </p>
-                  </div>
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                  <Controller
+                    name="sourceFileType"
+                    control={control}
+                    render={({ field }) => {
+                      const options = [{ value: "auto", label: "Detect from the file name" }, ...fileTypes];
+                      const current = field.value || "auto";
 
-                  <div className="space-y-2 ">
-                    <Input
-                      label="File Name"
-                      required
-                      error={errors.sourceFileName?.message}
-                      className="font-mono"
-                      placeholder="customers.csv"
-                      {...register("sourceFileName", {
-                        required: "File name is required",
-                        validate: value =>
-                          FILE_EXTENSION.test(value.trim().split("/").pop() ?? "") ||
-                          "Include the extension, exactly as the file is saved (for example customers.csv)",
-                        onBlur: event => applyLocation(event.target.value),
-                      })}
-                    />
-                    <p className="pl-2 text-xs text-muted-foreground mt-1">
-                      Exactly as it is saved, with its extension. The file type follows from it.
-                    </p>
-                  </div>
+                      return (
+                        <Select value={current} onValueChange={value => field.onChange(value === "auto" ? "" : value)}>
+                          <SelectTrigger label="Source File Type" hint="Optional. Worked out from the file name when left empty.">
+                            <SelectValue>{options.find(item => item.value === current)?.label}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {options.map(item => (
+                              <SelectItem key={item.value} value={item.value}>
+                                {item.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      );
+                    }}
+                  />
+
+                  <Controller
+                    name="sourceFileDelimiter"
+                    control={control}
+                    render={({ field }) => {
+                      const options = [
+                        { value: "auto", label: "Detect from the file" },
+                        { value: "comma", label: "Comma ( , )" },
+                        { value: "semicolon", label: "Semicolon ( ; )" },
+                        { value: "pipe", label: "Pipe ( | )" },
+                        { value: "tab", label: "Tab" },
+                      ];
+                      const current = field.value || "auto";
+                      // Only a CSV has a delimiter.
+                      const notApplicable = sourceFileType === "excel" || sourceFileType === "json";
+
+                      return (
+                        <Select
+                          value={current}
+                          disabled={notApplicable}
+                          onValueChange={value => field.onChange(value === "auto" ? "" : value)}>
+                          <SelectTrigger
+                            label="Delimiter"
+                            hint="Optional. Detected from the file when left empty. Only used for CSV files.">
+                            <SelectValue>
+                              {notApplicable ? "Not used for this file type" : options.find(item => item.value === current)?.label}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {options.map(item => (
+                              <SelectItem key={item.value} value={item.value}>
+                                {item.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      );
+                    }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                  <Input
+                    label="File Path"
+                    required
+                    hint="The folder inside the bucket, or the full path to the file. The file name is filled in for you."
+                    error={errors.sourceFilePath?.message}
+                    className="font-mono"
+                    placeholder="Eg. healthcare/  or  healthcare/customers.csv"
+                    {...register("sourceFilePath", {
+                      validate: value => !!value?.trim() || "File path is required",
+                      onBlur: event => applyLocation(event.target.value),
+                    })}
+                  />
+
+                  <Input
+                    label="File Name"
+                    required
+                    hint="Exactly as it is saved, with its extension. The file type follows from it."
+                    error={errors.sourceFileName?.message}
+                    className="font-mono"
+                    placeholder="customers.csv"
+                    {...register("sourceFileName", {
+                      required: "File name is required",
+                      validate: value =>
+                        FILE_EXTENSION.test(value.trim().split("/").pop() ?? "") ||
+                        "Include the extension, exactly as the file is saved (for example customers.csv)",
+                      onBlur: event => applyLocation(event.target.value),
+                    })}
+                  />
                 </div>
 
                 {selectedFileConnection && (
                   <div className="rounded-2xl bg-muted/40 p-4">
-                    <div className="flex items-center gap-2 mb-4">
+                    <div className="mb-4 flex items-center gap-2">
                       <HugeiconsIcon icon={LinkSquare02Icon} size={18} className="text-primary" />
                       <p className="text-sm font-medium text-foreground">Selected Source Connection</p>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
                       <Meta label="Storage Type" value={selectedFileConnection.storageType} />
                       <Meta label="Bucket" value={selectedFileConnection.bucketOrContainerName} />
                       <Meta label="Region" value={selectedFileConnection.region} />
@@ -424,9 +445,7 @@ const FileBasedCheckPage = () => {
 
                 {s3PickupUrl && (
                   <div className="rounded-2xl bg-muted/30 p-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      File pickup preview
-                    </p>
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">File pickup preview</p>
                     <a
                       href={s3PickupUrl}
                       target="_blank"
@@ -437,75 +456,68 @@ const FileBasedCheckPage = () => {
                   </div>
                 )}
               </div>
-            )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <Controller
-                name="targetConnectionId"
-                control={control}
-                rules={{ required: "Please select a target database connection" }}
-                render={({ field }) => {
-                  const selected = activeDbConnections.find(
-                    (item: any) => String(item.connectionId) === String(field.value)
-                  );
-
-                  return (
-                    <Select value={field.value || undefined} onValueChange={field.onChange}>
-                      <SelectTrigger label="Target DB Connection" required error={errors.targetConnectionId?.message}>
-                        <SelectValue placeholder="Select target DB connection">
-                          {selected?.connectionName || selected?.connectionId}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {activeDbConnections.map((db: any) => (
-                          <SelectItem key={db.connectionId} value={String(db.connectionId)}>
-                            {db.connectionName || db.connectionId}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  );
-                }}
-              />
-
-              <Input
-                label="Target Table Prefix"
-                required
-                error={errors.targetTableNamePrefix?.message}
-                className="font-mono"
-                placeholder="conformed_"
-                {...register("targetTableNamePrefix", {
-                  required: "Target table prefix is required",
-                })}
-              />
-            </div>
-
-              {/* Checkbox and name share one compact row, sized to their content, instead of a
-                  full-width box with the name field stretched across it. */}
-              <div className="flex w-fit max-w-full flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-muted/30 px-4 py-2.5">
-                <label className="flex cursor-pointer items-center gap-2" title="Creates a replica of the source table before the conformance output.">
+              <div className="mt-9 space-y-5">
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                   <Controller
-                    name="createLanding"
+                    name="targetConnectionId"
                     control={control}
-                    render={({ field }) => (
-                      <Checkbox checked={field.value} onCheckedChange={field.onChange} className="border border-blue-500" />
-                    )}
-                  />
-                  <span className="text-sm font-medium text-foreground">Create landing table</span>
-                </label>
+                    rules={{ required: "Please select a target database connection" }}
+                    render={({ field }) => {
+                      const selected = activeDbConnections.find(
+                        (item: any) => String(item.connectionId) === String(field.value)
+                      );
 
-                {createLanding && (
-                  <div className="w-64">
-                    <Input
-                      aria-label="Landing table name"
-                      required
+                      return (
+                        <Select value={field.value || undefined} onValueChange={field.onChange}>
+                          <SelectTrigger
+                            label="Target DB Connection"
+                            required
+                            empty={activeDbConnections.length === 0}
+                            emptyText="No database connections yet"
+                            error={errors.targetConnectionId?.message}>
+                            <SelectValue placeholder="Select target DB connection">
+                              {selected?.connectionName || selected?.connectionId}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {activeDbConnections.map((db: any) => (
+                              <SelectItem key={db.connectionId} value={String(db.connectionId)}>
+                                {db.connectionName || db.connectionId}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      );
+                    }}
+                  />
+
+                  <Input
+                    label="Target Table Prefix"
+                    required
+                    hint="The result tables are created as the prefix followed by _err and _valid."
+                    error={errors.targetTableNamePrefix?.message}
+                    className="font-mono"
+                    placeholder="conformed_"
+                    ghost={{ typed: targetTablePrefix ?? "", suffix: "_err" }}
+                    {...register("targetTableNamePrefix", {
+                      required: "Target table prefix is required",
+                    })}
+                  />
+                </div>
+
+                <Controller
+                  name="createLanding"
+                  control={control}
+                  render={({ field }) => (
+                    <LandingTableField
+                      checked={Boolean(field.value)}
+                      onCheckedChange={field.onChange}
                       error={errors.landingTable?.message}
-                      className="h-9 font-mono"
-                      placeholder="landing_customer_master"
-                      {...register("landingTable", { required: "Landing table name is required" })}
+                      inputProps={register("landingTable", createLanding ? { required: "Landing table name is required" } : undefined)}
                     />
-                  </div>
-                )}
+                  )}
+                />
               </div>
             </FormSection>
 

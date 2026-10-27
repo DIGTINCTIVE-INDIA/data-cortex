@@ -56,6 +56,7 @@ export const Endpoints = {
 
     // QC File Storage Check Configurations
     "POST /api/qc-configuration/file-storage/get-schema",
+    "GET /api/qc-configuration/file-storage/list-columns",
     "POST /api/qc-configuration/file-storage/create-check",
     "PATCH /api/qc-configuration/file-storage/update-check",
     "PATCH /api/qc-configuration/file-storage/toggle-check",

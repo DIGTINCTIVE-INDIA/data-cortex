@@ -30,7 +30,8 @@ export type TraditionalColumnRule = {
   duplicateCheck: boolean;
   duplicateCheckCriticality?: string | null;
   lengthCheck: boolean;
-  expectedLength?: number | null;
+  minLength?: number | null;
+  maxLength?: number | null;
   lengthCheckCriticality?: string | null;
   formatCheck: boolean;
   formatRegex?: string | null;
@@ -205,6 +206,13 @@ const qcConfigurationApisConfig = {
     responseType: undefined as unknown as any,
   },
   "GET /api/qc-configuration/db/list-columns": {
+    type: "query",
+    protected: true,
+    revalidateOnSuccess: [],
+    query: undefined as unknown as { configId: string },
+    responseType: undefined as unknown as any,
+  },
+  "GET /api/qc-configuration/file-storage/list-columns": {
     type: "query",
     protected: true,
     revalidateOnSuccess: [],

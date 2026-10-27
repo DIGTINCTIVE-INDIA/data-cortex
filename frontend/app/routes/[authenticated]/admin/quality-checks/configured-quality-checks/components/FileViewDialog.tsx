@@ -1,19 +1,36 @@
 "use client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AnimatedTabs } from "@/components/ui/custom/AnimatedTabs";
+import FieldDetails from "./FieldDetails";
 import { useDialog } from "@/hooks/useDialog";
 import { useApi } from "@/lib/useApi";
 import type { ConfiguredFileCheckItem } from "@/lib/useApi/types/qcConfigurationApis.types";
-import { Database01Icon, EyeIcon, WorkflowSquare09Icon } from "@hugeicons/core-free-icons";
+import { Database01Icon, WorkflowSquare09Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useState } from "react";
 
 type Props = {
   item: ConfiguredFileCheckItem;
-  disabled: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 };
 
-const FileViewDialog = ({ item, disabled }: Props) => {
-  const { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, open, setOpen } = useDialog();
+const DELIMITER_LABEL: Record<string, string> = {
+  ",": "Comma",
+  ";": "Semicolon",
+  "|": "Pipe",
+  "	": "Tab",
+  comma: "Comma",
+  semicolon: "Semicolon",
+  pipe: "Pipe",
+  tab: "Tab",
+};
+
+const FileViewDialog = ({ item, open, onOpenChange }: Props) => {
+  const { Dialog, DialogContent, DialogHeader, DialogTitle } = useDialog();
+  // Like the creation form: the details first, the fields on the next page.
+  const [page, setPage] = useState<"details" | "fields">("details");
 
   const { data: libraries } = useApi("GET /api/libraries/qc-tags/all");
   const { data: fileConnections } = useApi("GET /api/file-storage/connections/list");
@@ -37,14 +54,12 @@ const FileViewDialog = ({ item, disabled }: Props) => {
   );
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger disabled={disabled}>
-        <Button variant="outline" className="h-9 rounded-xl" disabled={disabled}>
-          <HugeiconsIcon icon={EyeIcon} size={16} />
-          View Details
-        </Button>
-      </DialogTrigger>
-
+    <Dialog
+      open={open}
+      onOpenChange={next => {
+        if (!next) setPage("details");
+        onOpenChange(next);
+      }}>
       <DialogContent className="max-h-[90vh] overflow-hidden rounded-3xl p-0 sm:max-w-4xl">
         <div className="max-h-[90vh] overflow-y-auto p-8">
           <DialogHeader className="mb-8">
@@ -67,9 +82,8 @@ const FileViewDialog = ({ item, disabled }: Props) => {
             {/* TOP CARD */}
             <div className="rounded-2xl border bg-card p-6">
               <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-lg font-semibold text-foreground">{item.configName}</h2>
-
                 <Badge variant="secondary">{item.configId}</Badge>
+                <h2 className="text-lg font-semibold text-foreground">{item.configName}</h2>
 
                 <Badge>{item.enabled ? "Enabled" : "Active"}</Badge>
               </div>
@@ -79,38 +93,64 @@ const FileViewDialog = ({ item, disabled }: Props) => {
               </p>
             </div>
 
-            {/* CONFIG DETAILS */}
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-              <InfoCard label="Workstream" value={workstream?.tagTitle} />
+            {/* TABS */}
+            <AnimatedTabs
+              value={page}
+              btnClassName="min-w-[160px]"
+              onValueChange={value => setPage(value as "details" | "fields")}
+              tabs={[
+                { value: "details", label: "Details" },
+                { value: "fields", label: "Fields" },
+              ]}
+            />
 
-              <InfoCard label="Category" value={category?.tagTitle} />
+            {page === "details" && (
+              <>
+            {/* LABELS */}
+            <div className="rounded-2xl border bg-card p-6">
+              <h3 className="mb-4 text-sm font-semibold text-foreground">Labels</h3>
 
-              <InfoCard label="Data Source" value={dataSource?.tagTitle} />
-
-              <InfoCard label="Source Connection" value={sourceConnection?.connectionName} />
-              <InfoCard label="Source File Type" value={item.sourceFileType || "-"} />
-              <InfoCard label="Source File Name" value={item.sourceFileName || "-"} />
-              <InfoCard label="Source File Path" value={item.sourceFilePath || "-"} />
-
-              <InfoCard label="Target Connection" value={targetConnection?.connectionName} />
-
-              <InfoCard label="Target Prefix" value={item.targetTablePrefix} />
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                <InfoCard label="Workstream" value={workstream?.tagTitle} />
+                <InfoCard label="Category" value={category?.tagTitle} />
+                <InfoCard label="Data Source" value={dataSource?.tagTitle} />
+                <InfoCard
+                  label="Impacted Downstream"
+                  value={
+                    <div className="flex flex-wrap gap-2">
+                    {item.impactedDownstream?.map(downstreamId => {
+                    const downstream = downstreams.find((d: any) => String(d.id) === String(downstreamId));
+  
+                    return (
+                      <Badge key={downstreamId} variant="secondary" className="rounded-xl px-3 py-1">
+                        {downstream?.tagTitle || downstreamId}
+                      </Badge>
+                    );
+                  })}
+                    </div>
+                  }
+                />
+              </div>
             </div>
 
-            {/* IMPACTED DOWNSTREAM */}
+            {/* SOURCE AND TARGET */}
             <div className="rounded-2xl border bg-card p-6">
-              <h3 className="mb-4 text-sm font-semibold text-foreground">Impacted Downstream</h3>
+              <h3 className="mb-4 text-sm font-semibold text-foreground">Connection Details</h3>
 
-              <div className="flex flex-wrap gap-2">
-                {item.impactedDownstream?.map(downstreamId => {
-                  const downstream = downstreams.find((d: any) => String(d.id) === String(downstreamId));
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                <InfoCard label="Source Connection" value={connectionText(sourceConnection, item.sourceConnectionId)} />
+                <InfoCard label="File Available On" value="AWS S3" />
+                <InfoCard label="Source File Type" value={item.sourceFileType || "-"} />
+                <InfoCard label="Delimiter" value={DELIMITER_LABEL[item.sourceFileDelimiter] || item.sourceFileDelimiter || "-"} />
+                <InfoCard label="File Path" value={item.sourceFilePath || "-"} />
+                <InfoCard label="File Name" value={item.sourceFileName || "-"} />
+              </div>
 
-                  return (
-                    <Badge key={downstreamId} variant="secondary" className="rounded-xl px-3 py-1">
-                      {downstream?.tagTitle || downstreamId}
-                    </Badge>
-                  );
-                })}
+              <div className="my-5" />
+
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                <InfoCard label="Target Connection" value={connectionText(targetConnection, item.targetConnectionId)} />
+                <InfoCard label="Target Prefix" value={item.targetTablePrefix} />
               </div>
             </div>
 
@@ -128,10 +168,14 @@ const FileViewDialog = ({ item, disabled }: Props) => {
                 <InfoCard label="Landing Table Name" value={item.landingTable ? item.landingTableName || "-" : "-"} />
               </div>
             </div>
+              </>
+            )}
+
+            {page === "fields" && <FieldDetails kind="file" configId={item.configId} />}
 
             {/* FOOTER */}
             <div className="flex justify-end">
-              <Button variant="outline" className="rounded-xl" onClick={() => setOpen(false)}>
+              <Button variant="outline" className="rounded-xl" onClick={() => onOpenChange(false)}>
                 Close
               </Button>
             </div>
@@ -144,12 +188,17 @@ const FileViewDialog = ({ item, disabled }: Props) => {
 
 export default FileViewDialog;
 
-const InfoCard = ({ label, value }: { label: string; value?: string | boolean }) => {
+
+// A connection reads as its id, then its name.
+const connectionText = (connection: { connectionName?: string } | undefined, id: string | number) =>
+  connection?.connectionName ? `${id} · ${connection.connectionName}` : String(id);
+
+const InfoCard = ({ label, value }: { label: string; value?: React.ReactNode }) => {
   return (
     <div className="rounded-2xl border bg-card p-4">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
 
-      <p className="mt-2 text-sm font-medium text-foreground break-words">{value || "N/A"}</p>
+      <div className="mt-2 text-sm font-medium text-foreground break-words">{value || "N/A"}</div>
     </div>
   );
 };

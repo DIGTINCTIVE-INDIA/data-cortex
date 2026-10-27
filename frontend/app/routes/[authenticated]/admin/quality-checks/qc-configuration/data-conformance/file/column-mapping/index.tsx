@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 import { useApi } from "@/lib/useApi/index.js";
-import { DragHandle } from "@/components/ui/custom/DragHandle";
+import { DragGhost, DragHandle } from "@/components/ui/custom/DragHandle";
+import { clearCache, readCache, writeCache } from "@/lib/localCache";
 import { useRowReorder } from "@/lib/reorder";
 import { cn } from "@/lib/utils";
 import { ArrowLeft02Icon } from "@hugeicons/core-free-icons";
@@ -34,7 +35,8 @@ export type QcFileRowConfiguration = {
   duplicateCheckCriticality?: string | null;
 
   lengthCheck?: boolean;
-  expectedLength?: number | null;
+  minLength?: number | null;
+  maxLength?: number | null;
   lengthCheckCriticality?: string | null;
 
   formatCheck?: boolean;
@@ -245,7 +247,7 @@ const RiColumnSelect = ({
 };
 
 const FieldRules = () => {
-  const { schema, setSchema, onSaveConfiguration, activeDbConnections } = useQcFIleConfProvider();
+  const { schema, setSchema, onSaveConfiguration, activeDbConnections, onSchemaFileParsed } = useQcFIleConfProvider();
   const navigate = useNavigate();
 
   if (!schema) return null;
@@ -274,7 +276,8 @@ const FieldRules = () => {
       duplicateCheckCriticality: null,
 
       lengthCheck: false,
-      expectedLength: null,
+      minLength: null,
+      maxLength: null,
       lengthCheckCriticality: null,
 
       formatCheck: false,
@@ -296,9 +299,31 @@ const FieldRules = () => {
   // Column order drives the order check. Drag a row or use the arrows; numbers are rewritten
   // 1..n from the visible order. Save already numbers columns by position, so what is
   // shown here is what is stored.
-  const reorder = useRowReorder(rowConfigurations, next =>
-    setRowConfigurations(next.map((row, position) => ({ ...row, columnOrder: position + 1 })))
+  const reorder = useRowReorder(
+    rowConfigurations,
+    next => setRowConfigurations(next.map((row, position) => ({ ...row, columnOrder: position + 1 }))),
+    row => row.field
   );
+
+  // The table is kept in this browser as it is edited (order, ticks, values), so a refresh or a
+  // closed tab does not lose it. It is only restored for the same file with the same columns,
+  // and cleared once the rules are saved. The restore effect is declared first so it reads the
+  // cache before the write effect below replaces it with the defaults on the first render.
+  const cacheKey = `rules:file:${schema.fileName}`;
+  useEffect(() => {
+    const names = schema.columns.map(column => column.columnName).sort().join("|");
+    const cached = readCache<QcFileRowConfiguration>(
+      cacheKey,
+      value => Array.isArray(value) && value.map(row => (row as { field: string }).field).sort().join("|") === names
+    );
+
+    if (cached) setRowConfigurations(cached);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    writeCache(cacheKey, rowConfigurations);
+  }, [cacheKey, rowConfigurations]);
 
   const updateRowConfiguration = (rowIndex: number, key: string, value: any) => {
     setRowConfigurations(prev =>
@@ -330,7 +355,8 @@ const FieldRules = () => {
 
         // LENGTH CHECK
         if (key === "lengthCheck" && value === false) {
-          updatedRow.expectedLength = null;
+          updatedRow.minLength = null;
+          updatedRow.maxLength = null;
           updatedRow.lengthCheckCriticality = null;
         }
 
@@ -392,7 +418,10 @@ const FieldRules = () => {
           Configuring: {schema.fileName}
           <button
             type="button"
-            onClick={() => setSchema(null)}
+            onClick={() => {
+              setSchema(null);
+              onSchemaFileParsed([], "");
+            }}
             className="ml-3 text-primary underline-offset-4 hover:underline">
             Change expected schema
           </button>
@@ -407,11 +436,13 @@ const FieldRules = () => {
             <p className="text-sm text-muted-foreground mt-1">{schema.columns.length} columns detected</p>
           </div>
 
-          <div className="text-right">
-            <p className="text-sm font-medium text-foreground">Rows Scanned</p>
+          {schema.rowsScanned > 0 && (
+            <div className="text-right">
+              <p className="text-sm font-medium text-foreground">Rows Scanned</p>
 
-            <p className="text-2xl font-semibold text-primary">{schema.rowsScanned}</p>
-          </div>
+              <p className="text-2xl font-semibold text-primary">{schema.rowsScanned}</p>
+            </div>
+          )}
         </div>
 
         <div className="overflow-x-auto overflow-y-hidden ">
@@ -434,7 +465,8 @@ const FieldRules = () => {
                 <TableHead>Duplicate Criticality</TableHead>
 
                 <TableHead>Length Check</TableHead>
-                <TableHead>Expected Length</TableHead>
+                <TableHead>Min Length</TableHead>
+                <TableHead>Max Length</TableHead>
                 <TableHead>Length Criticality</TableHead>
 
                 <TableHead>Format Check</TableHead>
@@ -458,15 +490,7 @@ const FieldRules = () => {
                 <TableRow
                   key={row.field}
                   {...reorder.rowProps(index)}
-                  className={cn(
-                    "transition-colors hover:bg-muted/20",
-                    // The row being carried, and a clear line showing where it will land --
-                    // a background tint alone never said which side of the row it drops on.
-                    reorder.dragging === index && "opacity-40",
-                    reorder.over === index &&
-                      reorder.dragging !== index &&
-                      "bg-primary/5 shadow-[inset_0_2px_0_0_var(--color-primary)]"
-                  )}>
+                  className={cn("hover:bg-muted/20", reorder.rowClass(index))}>
                   {/* <TableCell className="p-4">
                     <div className="flex items-center gap-2">
                       <Checkbox className="border-blue-500" />
@@ -557,11 +581,24 @@ const FieldRules = () => {
                   <TableCell>
                     <input
                       type="number"
-                      value={rowConfigurations[index]?.expectedLength || ""}
+                      value={rowConfigurations[index]?.minLength || ""}
                       onChange={e =>
-                        updateRowConfiguration(index, "expectedLength", e.target.value ? Number(e.target.value) : null)
+                        updateRowConfiguration(index, "minLength", e.target.value ? Number(e.target.value) : null)
                       }
-                      placeholder="Length"
+                      placeholder="Min length"
+                      disabled={!rowConfigurations[index]?.lengthCheck}
+                      className="flex h-10 w-[160px] rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </TableCell>
+
+                  <TableCell>
+                    <input
+                      type="number"
+                      value={rowConfigurations[index]?.maxLength || ""}
+                      onChange={e =>
+                        updateRowConfiguration(index, "maxLength", e.target.value ? Number(e.target.value) : null)
+                      }
+                      placeholder="Max length"
                       disabled={!rowConfigurations[index]?.lengthCheck}
                       className="flex h-10 w-[160px] rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
                     />
@@ -692,9 +729,18 @@ const FieldRules = () => {
             Back
           </Button>
 
-          <Button onClick={() => onSaveConfiguration(rowConfigurations)}>Save field rules</Button>
+          <Button
+            onClick={() =>
+              Promise.resolve(onSaveConfiguration(rowConfigurations))
+                .then(() => clearCache(cacheKey))
+                .catch(() => undefined)
+            }>
+            Save field rules
+          </Button>
         </div>
       </div>
+
+      <DragGhost ghost={reorder.ghost} />
     </div>
   );
 };
@@ -717,8 +763,6 @@ const ColumnMapping = () => {
     onSchemaFileParsed,
   } = useQcFIleConfProvider();
 
-  if (schema) return <FieldRules />;
-
   const values = watch();
 
   const useUploadedSchema = () => {
@@ -737,6 +781,15 @@ const ColumnMapping = () => {
       })),
     });
   };
+
+  // As in the database flow, columns that have been read or uploaded go straight to the field rules:
+  // there is no separate "continue" step to remember.
+  useEffect(() => {
+    if (!schema && uploadedColumns.length > 0) useUploadedSchema();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uploadedColumns, schema]);
+
+  if (schema) return <FieldRules />;
 
   return (
     <div className="space-y-8">
@@ -760,20 +813,17 @@ const ColumnMapping = () => {
           canFetch={isAwsS3}
           fetchBlockedReason="Choose S3 as the file location and a source connection first."
           loadedColumns={uploadedColumns.length}
+          sourceLabel={values.sourceFileName || undefined}
           uploadPanel={
             <SchemaFileDrop
               onParsed={onSchemaFileParsed}
               loadedFileName={uploadedFileName}
               loadedRowCount={uploadedColumns.length}
+              compact
             />
           }
         />
 
-        <div className="flex justify-end">
-          <Button type="button" onClick={useUploadedSchema} disabled={!uploadedColumns.length}>
-            Continue to field rules
-          </Button>
-        </div>
       </div>
     </div>
   );

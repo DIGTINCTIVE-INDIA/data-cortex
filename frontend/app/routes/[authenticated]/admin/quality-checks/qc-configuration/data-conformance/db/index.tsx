@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,6 +19,7 @@ import { Link } from "react-router";
 import { DownstreamPicker } from "../../components/DownstreamPicker";
 import { FlowSteps } from "../../components/FlowSteps";
 import { FormSection } from "../../components/FormSection";
+import { LandingTableField } from "../../components/LandingTableField";
 import { databaseCheckValidation } from "./databaseCheck.schema";
 import useCreateDBCheck from "./useCreateDBCheck";
 
@@ -52,8 +52,11 @@ const DatabaseCheckPage = () => {
   const {
     register,
     control,
+    watch,
     formState: { errors },
   } = form;
+
+  const targetTablePrefix = watch("targetTableNamePrefix");
 
   return (
     <div className="space-y-8">
@@ -96,22 +99,22 @@ const DatabaseCheckPage = () => {
             </div>
 
             <FormSection>
-              <div className="grid grid-cols-1 gap-5">
-              <Input
-                label="Check Name"
-                required
-                error={errors.checkName?.message}
-                placeholder="Customer Data Completeness"
-                {...register("checkName", databaseCheckValidation.checkName)}
-              />
-              </div>
+              <div className="grid grid-cols-1 items-start gap-5 md:grid-cols-2">
+                <Input
+                  label="Check Name"
+                  required
+                  error={errors.checkName?.message}
+                  placeholder="Customer Data Completeness"
+                  {...register("checkName", databaseCheckValidation.checkName)}
+                />
 
-            <Textarea
-              label="Description"
-              {...register("description")}
-              placeholder="Write a short description..."
-              className="min-h-[120px] resize-y"
-            />
+                <Textarea
+                  label="Description"
+                  {...register("description")}
+                  placeholder="Write a short description..."
+                  className="h-11 min-h-11 resize-y py-2.5"
+                />
+              </div>
             </FormSection>
 
             <FormSection step={1} title="Classification" description="How this check is grouped and who is affected when it fails.">
@@ -123,6 +126,8 @@ const DatabaseCheckPage = () => {
                 render={({ field }) => (
                   <Select value={field.value || undefined} onValueChange={field.onChange}>
                     <SelectTrigger
+                      empty={!isLibrariesPending && workstreams.length === 0}
+                      emptyText="No workstreams configured yet"
                       label="Impacted Workstream"
                       required
                       error={errors.workstreamId?.message}
@@ -149,7 +154,12 @@ const DatabaseCheckPage = () => {
                 rules={databaseCheckValidation.categoryId}
                 render={({ field }) => (
                   <Select value={field.value || undefined} onValueChange={field.onChange}>
-                    <SelectTrigger required label="Category" isLoading={isLibrariesPending}>
+                    <SelectTrigger
+                      required
+                      label="Category"
+                      empty={!isLibrariesPending && categories.length === 0}
+                      emptyText="No categories configured yet"
+                      isLoading={isLibrariesPending}>
                       <SelectValue placeholder="Select category">
                         {categories.find((item: any) => String(item.id) === String(field.value))?.tagTitle ?? ""}
                       </SelectValue>
@@ -172,7 +182,12 @@ const DatabaseCheckPage = () => {
                 rules={databaseCheckValidation.dataSourceId}
                 render={({ field }) => (
                   <Select value={field.value || undefined} onValueChange={field.onChange}>
-                    <SelectTrigger required label="Data Source" isLoading={isLibrariesPending}>
+                    <SelectTrigger
+                      required
+                      label="Data Source"
+                      empty={!isLibrariesPending && dataSources.length === 0}
+                      emptyText="No data sources configured yet"
+                      isLoading={isLibrariesPending}>
                       <SelectValue placeholder="Select data source">
                         {dataSources.find((item: any) => String(item.id) === String(field.value))?.tagTitle ?? ""}
                       </SelectValue>
@@ -193,6 +208,7 @@ const DatabaseCheckPage = () => {
                 selected={selectedDownstreams}
                 onToggle={toggleDownstream}
                 isLoading={isLibrariesPending}
+                required
               />
               </div>
             </FormSection>
@@ -211,7 +227,12 @@ const DatabaseCheckPage = () => {
                       if (!v) return;
                       handleSourceDbChange(v);
                     }}>
-                    <SelectTrigger label="Source Database" required error={errors.sourceDbId?.message}>
+                    <SelectTrigger
+                      label="Source Database"
+                      required
+                      empty={activeConnections.length === 0}
+                      emptyText="No database connections yet"
+                      error={errors.sourceDbId?.message}>
                       <SelectValue placeholder="Select source connection">
                         {
                           activeConnections.find((item: any) => String(item.connectionId) === String(field.value))
@@ -240,6 +261,8 @@ const DatabaseCheckPage = () => {
                     <SelectTrigger
                       isLoading={isTablesListLoading && !!sourceDbId}
                       disabled={!sourceDbId}
+                      empty={!!sourceDbId && !isTablesListLoading && sourceTables.length === 0}
+                      emptyText="No tables found in this database"
                       label="Source Table Name"
                       required
                       error={errors.sourceTableName?.message}>
@@ -258,6 +281,25 @@ const DatabaseCheckPage = () => {
               />
               </div>
 
+            {selectedDB && (
+              <div className="rounded-2xl bg-muted/40 p-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <HugeiconsIcon icon={LinkSquare02Icon} size={18} className="text-primary" />
+                  <p className="text-sm font-medium text-foreground">Selected Connection Details</p>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <Meta label="Type" value={selectedDB.databaseType} />
+                  <Meta label="Host" value={selectedDB.host} />
+                  <Meta label="Port" value={selectedDB.port} />
+                  <Meta label="Database" value={selectedDB.databaseName} />
+                  <Meta label="Username" value={selectedDB.username} />
+                  <Meta label="Schema" value={selectedDB.dbSchema} />
+                </div>
+              </div>
+            )}
+
+              <div className="mt-9 space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <Controller
                 name="targetConnectionId"
@@ -265,7 +307,12 @@ const DatabaseCheckPage = () => {
                 rules={databaseCheckValidation.targetConnectionId}
                 render={({ field }) => (
                   <Select value={field.value || undefined} onValueChange={field.onChange}>
-                    <SelectTrigger label="Target Connection" required error={errors.targetConnectionId?.message}>
+                    <SelectTrigger
+                      label="Target Connection"
+                      required
+                      empty={activeConnections.length === 0}
+                      emptyText="No database connections yet"
+                      error={errors.targetConnectionId?.message}>
                       <SelectValue placeholder="Select target connection">
                         {
                           activeConnections.find((item: any) => String(item.connectionId) === String(field.value))
@@ -291,54 +338,25 @@ const DatabaseCheckPage = () => {
                 error={errors.targetTableNamePrefix?.message}
                 className="font-mono"
                 placeholder="conformed_"
+                hint="The result tables are created as the prefix followed by _err and _valid."
+                ghost={{ typed: targetTablePrefix ?? "", suffix: "_err" }}
                 {...register("targetTableNamePrefix", databaseCheckValidation.targetTableNamePrefix)}
               />
               </div>
 
-            {selectedDB && (
-              <div className="rounded-2xl bg-muted/40 p-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <HugeiconsIcon icon={LinkSquare02Icon} size={18} className="text-primary" />
-                  <p className="text-sm font-medium text-foreground">Selected Connection Details</p>
-                </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <Meta label="Type" value={selectedDB.databaseType} />
-                  <Meta label="Host" value={selectedDB.host} />
-                  <Meta label="Port" value={selectedDB.port} />
-                  <Meta label="Database" value={selectedDB.databaseName} />
-                  <Meta label="Username" value={selectedDB.username} />
-                  <Meta label="Schema" value={selectedDB.dbSchema} />
-                </div>
-              </div>
-            )}
-
-              {/* Checkbox and name share one compact row, sized to their content, instead of a
-                  full-width box with the name field stretched across it. */}
-              <div className="flex w-fit max-w-full flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-muted/30 px-4 py-2.5">
-                <label className="flex cursor-pointer items-center gap-2">
-                  <Controller
-                    name="createLanding"
-                    control={control}
-                    render={({ field }) => (
-                      <Checkbox checked={field.value} onCheckedChange={field.onChange} className="border border-blue-500" />
-                    )}
-                  />
-                  <span className="text-sm font-medium text-foreground">Create landing table</span>
-                </label>
-
-                {createLanding && (
-                  <div className="w-64">
-                    <Input
-                      aria-label="Landing table name"
-                      required
+                <Controller
+                  name="createLanding"
+                  control={control}
+                  render={({ field }) => (
+                    <LandingTableField
+                      checked={Boolean(field.value)}
+                      onCheckedChange={field.onChange}
                       error={errors.landingTable?.message}
-                      className="h-9 font-mono"
-                      placeholder="landing_customer_master"
-                      {...register("landingTable", databaseCheckValidation.landingTable)}
+                      inputProps={register("landingTable", createLanding ? databaseCheckValidation.landingTable : undefined)}
                     />
-                  </div>
-                )}
+                  )}
+                />
               </div>
             </FormSection>
 

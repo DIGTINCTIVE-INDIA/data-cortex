@@ -212,6 +212,7 @@ const EditFileDialog = ({ item, disabled }: Props) => {
                 items={downstreamItems}
                 selected={selectedDownstreams.map(Number)}
                 onToggle={(item: any) => toggleDownstream(Number(item.id))}
+                required
               />
 
               {/* FILE SECTION */}

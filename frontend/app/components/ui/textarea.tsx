@@ -1,3 +1,4 @@
+import { InfoHint } from "@/components/ui/hint";
 import { cn } from "@/lib/utils";
 import * as React from "react";
 
@@ -5,9 +6,10 @@ type TextareaProps = React.ComponentProps<"textarea"> & {
   label?: string;
   error?: string;
   required?: boolean;
+  hint?: string;
 };
 
-function Textarea({ className, label, error, required = false, id, ...props }: TextareaProps) {
+function Textarea({ className, label, error, required = false, hint, id, ...props }: TextareaProps) {
   const textareaId = id ?? React.useId();
 
   return (
@@ -35,6 +37,7 @@ function Textarea({ className, label, error, required = false, id, ...props }: T
             )}>
             {label}
             {required && <span className="ml-0.5 text-destructive">*</span>}
+            {hint && <InfoHint text={hint} />}
           </label>
         )}
 

@@ -12,6 +12,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
       // Stacked rather than overlapping, so a second toast pushes the first up
       // instead of covering it.
       expand
+      // Every toast can be dismissed, and they sit above the sticky Save bars instead of
+      // hugging the bottom-right corner.
+      closeButton
+      offset={{ bottom: 88, right: 24 }}
+      mobileOffset={{ bottom: 88, right: 16 }}
       // The hard stop. Beyond this they queue instead of growing down the
       // screen and blocking the UI when someone clicks repeatedly.
       visibleToasts={3}

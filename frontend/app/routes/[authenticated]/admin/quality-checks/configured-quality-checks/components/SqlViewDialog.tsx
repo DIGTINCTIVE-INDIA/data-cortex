@@ -4,16 +4,17 @@ import { Button } from "@/components/ui/button";
 import { useDialog } from "@/hooks/useDialog";
 import { useApi } from "@/lib/useApi";
 import type { CustomSqlCheckItem } from "@/lib/useApi/types/qcConfigurationApis.types";
-import { Database01Icon, EyeIcon, SourceCodeCircleIcon } from "@hugeicons/core-free-icons";
+import { Database01Icon, SourceCodeCircleIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 type Props = {
   item: CustomSqlCheckItem;
-  disabled: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 };
 
-const SqlViewDialog = ({ item, disabled }: Props) => {
-  const { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, open, setOpen } = useDialog();
+const SqlViewDialog = ({ item, open, onOpenChange }: Props) => {
+  const { Dialog, DialogContent, DialogHeader, DialogTitle } = useDialog();
 
   const { data: libraries } = useApi("GET /api/libraries/qc-tags/all");
   const { data: dbConnections } = useApi("GET /api/db/connections/list");
@@ -36,14 +37,7 @@ const SqlViewDialog = ({ item, disabled }: Props) => {
   );
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger disabled={disabled}>
-        <Button variant="outline" className="h-9 rounded-xl" disabled={disabled}>
-          <HugeiconsIcon icon={EyeIcon} size={16} />
-          View Details
-        </Button>
-      </DialogTrigger>
-
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-hidden rounded-3xl p-0 sm:max-w-4xl">
         <div className="max-h-[90vh] overflow-y-auto p-8">
           <DialogHeader className="mb-8">
@@ -92,9 +86,9 @@ const SqlViewDialog = ({ item, disabled }: Props) => {
 
               <InfoCard label="Criticality" value={item.criticality} />
 
-              <InfoCard label="Source Connection" value={sourceConnection?.connectionName} />
+              <InfoCard label="Source Connection" value={connectionText(sourceConnection, item.sourceConnectionId)} />
 
-              <InfoCard label="Target Connection" value={targetConnection?.connectionName} />
+              <InfoCard label="Target Connection" value={connectionText(targetConnection, item.targetConnectionId)} />
 
               <InfoCard label="Target Prefix" value={item.targetTablePrefix} />
 
@@ -142,7 +136,7 @@ const SqlViewDialog = ({ item, disabled }: Props) => {
 
             {/* FOOTER */}
             <div className="flex justify-end">
-              <Button variant="outline" className="rounded-xl" onClick={() => setOpen(false)}>
+              <Button variant="outline" className="rounded-xl" onClick={() => onOpenChange(false)}>
                 Close
               </Button>
             </div>
@@ -155,7 +149,12 @@ const SqlViewDialog = ({ item, disabled }: Props) => {
 
 export default SqlViewDialog;
 
-const InfoCard = ({ label, value }: { label: string; value?: string | boolean }) => {
+
+// A connection reads as its id, then its name.
+const connectionText = (connection: { connectionName?: string } | undefined, id: string | number) =>
+  connection?.connectionName ? `${id} · ${connection.connectionName}` : String(id);
+
+const InfoCard = ({ label, value }: { label: string; value?: React.ReactNode }) => {
   return (
     <div className="rounded-2xl border bg-card p-4">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>

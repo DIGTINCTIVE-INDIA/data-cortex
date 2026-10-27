@@ -1,12 +1,13 @@
 import InfiniteListWrapper from "@/components/layout/InfiniteListWrapper";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { useAuthStore } from "@/contexts/AuthContext";
+import { can } from "@/lib/permissions";
 import { useApi } from "@/lib/useApi";
 import type { ConfiguredDbCheckItem, ConfiguredFileCheckItem } from "@/lib/useApi/types/qcConfigurationApis.types";
 import { cn } from "@/lib/utils";
 import { Database01Icon, DocumentValidationIcon, PlayIcon, SourceCodeCircleIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { filterByWorkstream } from "../utils/filterByWorkstream";
 import DbViewDialog from "./DbViewDialog";
 import EditDbDialog from "./EditDbDialog";
@@ -45,8 +46,10 @@ export const DataConformList = ({ workstream }: Props) => {
     refetch: fileRefetch,
   } = useApi("GET /api/qc-configuration/file-storage/list-checks");
 
-  const dbList = dbResponse?.data?.items || [];
-  const fileList = fileResponse?.data?.items || [];
+  // An analyst never sees a check that has been switched off.
+  const canConfigure = can(useAuthStore(state => state.auth.session?.role), "configure");
+  const dbList = (dbResponse?.data?.items || []).filter(item => canConfigure || item.enabled);
+  const fileList = (fileResponse?.data?.items || []).filter(item => canConfigure || item.enabled);
 
   const filteredDbList = useMemo(() => filterByWorkstream(dbList, workstream), [dbList, workstream]);
   const filteredFileList = useMemo(() => filterByWorkstream(fileList, workstream), [fileList, workstream]);
@@ -110,8 +113,13 @@ export const DataConformList = ({ workstream }: Props) => {
   );
 };
 
+
+
 const DbCheckCard = ({ item }: { item: ConfiguredDbCheckItem }) => {
+  const [viewOpen, setViewOpen] = useState(false);
   const runIsLive = useRunIsLive(item.configId);
+  // An analyst can look at a check and run it; editing and switching it on or off are for engineers and admins.
+  const canConfigure = can(useAuthStore(state => state.auth.session?.role), "configure");
 
   const { mutateAsync, isPending } = useApi("PATCH /api/qc-configuration/db/update-check", {
     query: {
@@ -156,9 +164,21 @@ const DbCheckCard = ({ item }: { item: ConfiguredDbCheckItem }) => {
 
 
   return (
+    <>
     <div
+      role="button"
+      tabIndex={0}
+      onClick={() => item.enabled && setViewOpen(true)}
+      onKeyDown={event => {
+        if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          if (item.enabled) setViewOpen(true);
+        }
+      }}
       className={cn(
-        "rounded-2xl bg-background px-4 py-3.5 ring-1 ring-border/60 transition hover:bg-muted/25 hover:ring-primary/30",
+        item.enabled &&
+          "cursor-pointer hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5 active:translate-y-0 active:shadow-sm",
+        "rounded-2xl bg-background px-4 py-3.5 ring-1 ring-border/60 transition duration-200 hover:bg-muted/25 hover:ring-primary/30",
         item.enabled ? "bg-background/80 hover:bg-background" : "bg-background/50 opacity-60",
         // A run this card just started is the card's own state for the next few
         // seconds, so the whole card breathes rather than only the button.
@@ -180,7 +200,8 @@ const DbCheckCard = ({ item }: { item: ConfiguredDbCheckItem }) => {
         </div>
 
         {/* Edit, then the on/off switch at the far right, in the top corner of every card. */}
-        <div className="flex shrink-0 items-center gap-3">
+        {canConfigure && (
+          <div className="flex shrink-0 items-center gap-3" onClick={event => event.stopPropagation()}>
           <EditDbDialog item={item} disabled={!item.enabled} />
           <Switch
             requires="configure"
@@ -189,6 +210,7 @@ const DbCheckCard = ({ item }: { item: ConfiguredDbCheckItem }) => {
             onCheckedChange={() => handleToggleConfig(item.configId)}
           />
         </div>
+        )}
       </div>
 
       {/* The facts on the left; View details and Run on the same line, at the right,
@@ -201,17 +223,22 @@ const DbCheckCard = ({ item }: { item: ConfiguredDbCheckItem }) => {
           <Meta label="Table Prefix" value={item.targetTablePrefix} />
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
-          <DbViewDialog item={item} disabled={!item.enabled} />
+        <div className="flex shrink-0 items-center gap-2" onClick={event => event.stopPropagation()}>
           <RunCheckButton configId={item.configId} source="db" enabled={item.enabled} />
         </div>
       </div>
     </div>
+
+    <DbViewDialog item={item} open={viewOpen} onOpenChange={setViewOpen} />
+    </>
   );
 };
 
 const FileCheckCard = ({ item }: { item: ConfiguredFileCheckItem }) => {
+  const [viewOpen, setViewOpen] = useState(false);
   const runIsLive = useRunIsLive(item.configId);
+  // An analyst can look at a check and run it; editing and switching it on or off are for engineers and admins.
+  const canConfigure = can(useAuthStore(state => state.auth.session?.role), "configure");
 
   const { mutateAsync, isPending } = useApi("PATCH /api/qc-configuration/file-storage/update-check", {
     query: {
@@ -258,9 +285,21 @@ const FileCheckCard = ({ item }: { item: ConfiguredFileCheckItem }) => {
   };
 
   return (
+    <>
     <div
+      role="button"
+      tabIndex={0}
+      onClick={() => item.enabled && setViewOpen(true)}
+      onKeyDown={event => {
+        if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          if (item.enabled) setViewOpen(true);
+        }
+      }}
       className={cn(
-        "rounded-2xl bg-background px-4 py-3.5 ring-1 ring-border/60 transition hover:bg-muted/25 hover:ring-primary/30",
+        item.enabled &&
+          "cursor-pointer hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5 active:translate-y-0 active:shadow-sm",
+        "rounded-2xl bg-background px-4 py-3.5 ring-1 ring-border/60 transition duration-200 hover:bg-muted/25 hover:ring-primary/30",
         item.enabled ? "bg-background/80 hover:bg-background" : "bg-background/50 opacity-60",
         // A run this card just started is the card's own state for the next few
         // seconds, so the whole card breathes rather than only the button.
@@ -275,15 +314,16 @@ const FileCheckCard = ({ item }: { item: ConfiguredFileCheckItem }) => {
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2">
               <h3 className="min-w-0 truncate text-[15px] font-semibold text-foreground" title={String(item.configName)}>{item.configName}</h3>
-
               <Badge>{item.configId}</Badge>
+
               <Badge tone="warning">{workstream?.tagTitle || "Workstream N/A"}</Badge>
             </div>
           </div>
         </div>
 
         {/* Edit, then the on/off switch at the far right, in the top corner of every card. */}
-        <div className="flex shrink-0 items-center gap-3">
+        {canConfigure && (
+          <div className="flex shrink-0 items-center gap-3" onClick={event => event.stopPropagation()}>
           <EditFileDialog item={item} disabled={!item.enabled} />
           <Switch
             requires="configure"
@@ -292,24 +332,27 @@ const FileCheckCard = ({ item }: { item: ConfiguredFileCheckItem }) => {
             onCheckedChange={() => handleToggleConfig(item.configId)}
           />
         </div>
+        )}
       </div>
 
       {/* The facts on the left; View details and Run on the same line, at the right,
           with Run right-most. */}
       <div className="mt-2.5 flex items-end justify-between gap-4 md:pl-12">
         <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-2">
-          <Meta label="Data Source" value={dataSource?.tagTitle || "DataSource N/A"} />
+          <Meta label="Data Source" value={dataSource?.tagTitle || "Data Source N/A"} />
           <Meta label="Source Connection" value={sourceConnection?.connectionName || "Source Connection N/A"} />
           <Meta label="Target Connection" value={targetConnection?.connectionName || "Target connection N/A"} />
           <Meta label="Table Prefix" value={item.targetTablePrefix} />
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
-          <FileViewDialog item={item} disabled={!item.enabled} />
+        <div className="flex shrink-0 items-center gap-2" onClick={event => event.stopPropagation()}>
           <RunCheckButton configId={item.configId} source="file" enabled={item.enabled} />
         </div>
       </div>
     </div>
+
+    <FileViewDialog item={item} open={viewOpen} onOpenChange={setViewOpen} />
+    </>
   );
 };
 

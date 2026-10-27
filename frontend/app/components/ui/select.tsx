@@ -3,7 +3,9 @@ import { ArrowDown01Icon, ArrowUp01Icon, Tick02Icon } from "@hugeicons/core-free
 import { HugeiconsIcon } from "@hugeicons/react";
 import * as React from "react";
 
-import { useAuthStore } from "@/contexts/AuthContext";
+import { InfoHint } from "@/components/ui/hint";
+import { useAuthStore } from "@/contexts/AuthContext";
+
 import { can, type Permission } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +35,9 @@ function SelectTrigger({
   isLoading = false,
   onlyAdmin,
   requires,
+  hint,
+  empty = false,
+  emptyText = "Nothing to choose from yet",
   ...props
 }: SelectPrimitive.Trigger.Props & {
   size?: "sm" | "default";
@@ -42,6 +47,14 @@ function SelectTrigger({
   isLoading?: boolean;
   onlyAdmin?: boolean;
   requires?: Permission;
+  /** Explanation shown on hover of a small "i" in the label. */
+  hint?: string;
+  /**
+   * The list has no options. The field is shown disabled with `emptyText` as its placeholder,
+   * instead of opening a menu with nothing in it.
+   */
+  empty?: boolean;
+  emptyText?: string;
 }) {
   const triggerId = props.id ?? React.useId();
 
@@ -63,6 +76,7 @@ function SelectTrigger({
             )}>
             {label}
             {required && <span className="ml-0.5 text-destructive">*</span>}
+            {hint && <InfoHint text={hint} />}
           </label>
         )}
 
@@ -71,7 +85,7 @@ function SelectTrigger({
           data-slot="select-trigger"
           data-size={size}
           aria-invalid={!!error || props["aria-invalid"]}
-          disabled={isLoading || props.disabled || isDisabled}
+          disabled={isLoading || props.disabled || isDisabled || (empty && !isLoading)}
           className={cn(
             "group/select flex w-full min-w-0 items-center justify-between gap-3",
             "rounded-xl bg-muted/50 px-3.5 text-sm text-foreground",
@@ -89,7 +103,13 @@ function SelectTrigger({
             className
           )}
           {...props}>
-          {isLoading ? <div></div> : children}
+          {isLoading ? (
+            <div></div>
+          ) : empty ? (
+            <span className="flex-1 truncate text-left text-muted-foreground">{emptyText}</span>
+          ) : (
+            children
+          )}
 
           {isLoading ? (
             <span className="flex size-8 items-center justify-center rounded-lg text-muted-foreground">

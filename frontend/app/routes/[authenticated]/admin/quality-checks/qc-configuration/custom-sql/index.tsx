@@ -59,6 +59,7 @@ const CustomSqlCheckPage = () => {
   } = form;
 
   const selectedSourceConnectionId = watch("sourceConnectionId");
+  const targetTablePrefix = watch("targetTablePrefix");
 
   const sqlEditorSchema = useApi("GET /api/qc-configuration/custom-sql/schema", {
     query: {
@@ -110,22 +111,22 @@ const CustomSqlCheckPage = () => {
             </div>
 
             <FormSection>
-              <div className="grid grid-cols-1 gap-5">
-              <Input
-                label="Check Name"
-                required
-                error={errors.checkName?.message}
-                placeholder="Missing customer identifiers"
-                {...register("checkName", customSqlCheckValidation.checkName)}
-              />
-              </div>
+              <div className="grid grid-cols-1 items-start gap-5 md:grid-cols-2">
+                <Input
+                  label="Check Name"
+                  required
+                  error={errors.checkName?.message}
+                  placeholder="Missing customer identifiers"
+                  {...register("checkName", customSqlCheckValidation.checkName)}
+                />
 
-            <Textarea
-              label="Description"
-              {...register("checkDescription")}
-              placeholder="Optional description of what this check validates..."
-              className="min-h-[100px] resize-y"
-            />
+                <Textarea
+                  label="Description"
+                  {...register("checkDescription")}
+                  placeholder="Optional description of what this check validates..."
+                  className="h-11 min-h-11 resize-y py-2.5"
+                />
+              </div>
             </FormSection>
 
             <FormSection step={1} title="Classification" description="How this check is grouped and who is affected when it fails.">
@@ -138,6 +139,8 @@ const CustomSqlCheckPage = () => {
                   <Select value={field.value || undefined} onValueChange={field.onChange}>
                     <SelectTrigger
                       label="Workstream"
+                      empty={!isLibrariesPending && workstreams.length === 0}
+                      emptyText="No workstreams configured yet"
                       required
                       error={errors.workstreamId?.message}
                       isLoading={isLibrariesPending}>
@@ -165,6 +168,8 @@ const CustomSqlCheckPage = () => {
                   <Select value={field.value || undefined} onValueChange={field.onChange}>
                     <SelectTrigger
                       label="Check Category"
+                      empty={!isLibrariesPending && categories.length === 0}
+                      emptyText="No categories configured yet"
                       required
                       error={errors.categoryId?.message}
                       isLoading={isLibrariesPending}>
@@ -192,6 +197,8 @@ const CustomSqlCheckPage = () => {
                   <Select value={field.value || undefined} onValueChange={field.onChange}>
                     <SelectTrigger
                       label="Data Source"
+                      empty={!isLibrariesPending && dataSources.length === 0}
+                      emptyText="No data sources configured yet"
                       required
                       error={errors.dataSourceId?.message}
                       isLoading={isLibrariesPending}>
@@ -222,7 +229,7 @@ const CustomSqlCheckPage = () => {
             </FormSection>
 
             <FormSection step={2} title="Connections" description="Where the query runs, and where passing and failing rows are written.">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
               <Controller
                 name="sourceConnectionId"
                 control={control}
@@ -231,6 +238,8 @@ const CustomSqlCheckPage = () => {
                   <Select value={field.value || undefined} onValueChange={field.onChange}>
                     <SelectTrigger
                       label="Source DB Connection"
+                      empty={!isConnectionsPending && activeConnections.length === 0}
+                      emptyText="No database connections yet"
                       required
                       error={errors.sourceConnectionId?.message}
                       isLoading={isConnectionsPending}>
@@ -261,6 +270,8 @@ const CustomSqlCheckPage = () => {
                   <Select value={field.value || undefined} onValueChange={field.onChange}>
                     <SelectTrigger
                       label="Target DB Connection"
+                      empty={!isConnectionsPending && activeConnections.length === 0}
+                      emptyText="No database connections yet"
                       required
                       error={errors.targetConnectionId?.message}
                       isLoading={isConnectionsPending}>
@@ -289,6 +300,8 @@ const CustomSqlCheckPage = () => {
                 error={errors.targetTablePrefix?.message}
                 className="font-mono"
                 placeholder="custom_sql_"
+                hint="The result tables are created as the prefix followed by _err and _valid."
+                ghost={{ typed: targetTablePrefix ?? "", suffix: "_err" }}
                 {...register("targetTablePrefix", customSqlCheckValidation.targetTablePrefix)}
               />
               </div>
@@ -398,15 +411,14 @@ const CustomSqlCheckPage = () => {
                   </Select>
                 )}
               />
+              <Input
+                label="Error Message"
+                required
+                error={errors.errorMessage?.message}
+                placeholder="Message shown when this check fails"
+                {...register("errorMessage", customSqlCheckValidation.errorMessage)}
+              />
               </div>
-
-            <Input
-              label="Error Message"
-              required
-              error={errors.errorMessage?.message}
-              placeholder="Message shown when this check fails"
-              {...register("errorMessage", customSqlCheckValidation.errorMessage)}
-            />
             </FormSection>
 
             <div className="flex items-center justify-between gap-3 pt-2">
